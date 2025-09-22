@@ -245,12 +245,14 @@ jobs:
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           # 🚀 Release Build Summary
           
-          ## Version Information
+          ## ✅ Release Created Successfully!
+          
+          ### Version Information
           - **Release Version**: \`${{ needs.prepare-release.outputs.version }}\`
           - **Version Mode**: ${{ github.event.inputs.version_mode }}
           - **GitHub Release**: [View Release](${{ steps.create-release.outputs.html_url }})
           
-          ## Apps to Build
+          ### Apps to Build
           - **Selection Mode**: ${{ github.event.inputs.app_selection }}
           EOF
           
@@ -259,15 +261,16 @@ jobs:
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Apps List:" >> $GITHUB_STEP_SUMMARY
+          echo "#### Apps List:" >> $GITHUB_STEP_SUMMARY
           echo '```json' >> $GITHUB_STEP_SUMMARY
           echo '${{ needs.prepare-release.outputs.apps }}' | jq '.' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🎯 Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Release Details" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag**: \`${{ needs.prepare-release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release URL**: ${{ steps.create-release.outputs.html_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Workflow triggered by: @${{ github.actor }}*" >> $GITHUB_STEP_SUMMARY
+          echo "*Workflow triggered by: @${{ github.actor }} • Run #${{ github.run_number }}*" >> $GITHUB_STEP_SUMMARY
