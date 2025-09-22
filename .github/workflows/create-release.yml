@@ -1,6 +1,7 @@
 name: Create Release
 
-run-name: "${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || format('v{0}', github.event.inputs.version_mode) }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
+# The run-name will show what was selected at trigger time
+run-name: "Create Release: ${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || 'Auto-increment' }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
 
 on:
   workflow_dispatch:
@@ -117,6 +118,13 @@ jobs:
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "✅ Version validated: $VERSION"
+          
+          # Display prominent banner with actual version
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║     RELEASE VERSION: $VERSION         "
+          echo "╚════════════════════════════════════════╝"
+          echo ""
       
       - name: Determine apps to build
         id: determine-apps
