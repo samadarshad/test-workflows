@@ -220,6 +220,10 @@ jobs:
               }
             }")
           
+          # Debug: Show full response structure
+          echo "🔍 Full Bitrise API Response:"
+          echo "$RESPONSE" | jq .
+          
           # Extract build URL, status, build number, and public install page URL
           BUILD_URL=$(echo "$RESPONSE" | jq -r '.build_url // empty')
           BUILD_SLUG=$(echo "$RESPONSE" | jq -r '.build_slug // empty')
@@ -238,6 +242,10 @@ jobs:
           echo "Build Slug: $BUILD_SLUG"
           echo "Build Number: $BUILD_NUMBER"
           echo "Public Install Page: $PUBLIC_INSTALL_PAGE_URL"
+          
+          # Check available fields for install page
+          echo "🔍 Checking for install page related fields:"
+          echo "$RESPONSE" | jq 'keys[]' | grep -i install || echo "No install-related keys found"
           
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
           echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
