@@ -177,10 +177,19 @@ jobs:
           VERSION="${{ needs.prepare-release.outputs.version }}"
           APPS='${{ needs.prepare-release.outputs.apps }}'
           
+          # Get the previous tag for comparison
+          PREVIOUS_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 2 | head -n 1)
+          
+          # If no previous tag, use the initial commit
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" == "$VERSION" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+            echo "No previous tag found, using initial commit"
+          else
+            echo "Previous tag: $PREVIOUS_TAG"
+          fi
+          
           # Create release notes
           cat > release_notes.md << EOF
-          # Release $VERSION
-          
           ## 📦 Apps Included
           EOF
           
