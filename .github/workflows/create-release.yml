@@ -202,6 +202,7 @@ jobs:
           - **Version Mode**: ${{ github.event.inputs.version_mode }}
           - **Triggered by**: @${{ github.actor }}
           - **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ## 📝 Changes
           _To be updated with actual changes_
