@@ -319,8 +319,24 @@ jobs:
             if [ "$BUILD_STATUS" = "success" ] || [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ] || [ "$FINISHED_AT" != "null" ]; then
               echo "✅ Build finished with status: $BUILD_STATUS"
               
+              # Debug: Show full build completion response
+              echo "🔍 Full build completion response:"
+              echo "$STATUS_RESPONSE" | jq .data
+              
               # Extract final build details including public install page
               FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty' 2>/dev/null || echo "")
+              
+              # Try alternative field names
+              if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                echo "🔍 Trying alternative install page fields:"
+                FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page // empty' 2>/dev/null || echo "")
+                echo "public_install_page: $FINAL_PUBLIC_INSTALL_URL"
+                
+                if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                  FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.install_page_url // empty' 2>/dev/null || echo "")
+                  echo "install_page_url: $FINAL_PUBLIC_INSTALL_URL"
+                fi
+              fi
               
               echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
               echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
