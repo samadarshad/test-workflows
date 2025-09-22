@@ -319,6 +319,12 @@ jobs:
               echo "final_public_install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
               echo "build_completed=true" >> $GITHUB_OUTPUT
               
+              # Fail the job if build failed or was aborted
+              if [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ]; then
+                echo "❌ Build failed with status: $BUILD_STATUS"
+                exit 1
+              fi
+              
               break
             fi
             
