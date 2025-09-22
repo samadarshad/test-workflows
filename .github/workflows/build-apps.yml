@@ -262,12 +262,23 @@ jobs:
       
       - name: Create build summary entry
         run: |
+          PUBLIC_INSTALL_URL="${{ steps.trigger-bitrise.outputs.public_install_page_url }}"
+          
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
           - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
           - **Build Number**: \`${{ steps.trigger-bitrise.outputs.build_number }}\`
           - **Bitrise Build**: [View Build](${{ steps.trigger-bitrise.outputs.build_url }})
+          EOF
+          
+          if [ -n "$PUBLIC_INSTALL_URL" ] && [ "$PUBLIC_INSTALL_URL" != "null" ] && [ "$PUBLIC_INSTALL_URL" != "empty" ]; then
+            echo "- **Install Page**: [Download App]($PUBLIC_INSTALL_URL)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Install Page**: _Will be available after build completion_" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
           - **Status**: ✅ Triggered
           
           EOF
