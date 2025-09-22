@@ -720,21 +720,15 @@ jobs:
               fi
             fi
             
-            # Check for iOS staging
+            # Check for iOS staging - no install page expected
             if [ -f "build-results/${app}-ios-staging.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-ios-staging.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
-              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
-              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
-              
-              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
-                STAGING_IOS="<$INSTALL_URL|$BUILD_NUM>"
-              else
-                STAGING_IOS="$BUILD_NUM"
-              fi
+              # iOS builds don't need install URLs
+              STAGING_IOS="$BUILD_NUM"
             fi
             
-            # Check for Android production
+            # Check for Android production - with install page links
             if [ -f "build-results/${app}-android-production.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-android-production.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
@@ -748,18 +742,12 @@ jobs:
               fi
             fi
             
-            # Check for iOS production
+            # Check for iOS production - no install page expected
             if [ -f "build-results/${app}-ios-production.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-ios-production.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
-              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
-              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
-              
-              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
-                PROD_IOS="<$INSTALL_URL|$BUILD_NUM>"
-              else
-                PROD_IOS="$BUILD_NUM"
-              fi
+              # iOS builds don't need install URLs
+              PROD_IOS="$BUILD_NUM"
             fi
             
             # Append to message file
