@@ -349,30 +349,46 @@ jobs:
           RELEASE_EXISTS="${{ needs.determine-build-parameters.outputs.release_exists }}"
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 🚀 Build Summary
+          # 🚀 Bitrise Build Summary
           
           ## 📋 Build Information
           
           | Field | Value |
           |-------|-------|
           | **Version** | \`$VERSION\` |
+          | **Release Branch** | \`release/$VERSION\` |
           | **Version Source** | ${{ github.event.inputs.version_source }} |
           | **Release Exists** | $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Yes" || echo "⚠️ No") |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
           
-          ## 📦 Apps Built
+          ## 📦 Bitrise Workflows Triggered
           
-          | App | Status |
-          |-----|--------|
+          | App | Platform | Environment | Workflow | Status |
+          |-----|----------|-------------|----------|--------|
           EOF
           
           echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "| $app | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+            APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
+            for platform in android ios; do
+              for env in staging production; do
+                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ✅ Triggered |" >> $GITHUB_STEP_SUMMARY
+              done
+            done
           done
           
+          # Calculate total builds
+          TOTAL_APPS=$(echo "$APPS" | jq -r '. | length')
+          TOTAL_BUILDS=$((TOTAL_APPS * 4))
+          
           cat >> $GITHUB_STEP_SUMMARY <<EOF
+          
+          ## 📊 Summary
+          
+          - **Total Apps**: $TOTAL_APPS
+          - **Builds per App**: 4 (2 platforms × 2 environments)
+          - **Total Builds Triggered**: $TOTAL_BUILDS
           
           ## 🔗 Links
           
@@ -387,7 +403,14 @@ jobs:
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
+          
+          ## ⚠️ Important Notes
+          
+          1. **Check Bitrise** for individual build statuses and download artifacts
+          2. **Release Branch**: All builds are from \`release/$VERSION\`
+          3. **Workflow Naming**: Follows pattern \`{app}-{platform}-{environment}\`
           
           ---
-          *Build completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          *Builds triggered at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
           EOF
