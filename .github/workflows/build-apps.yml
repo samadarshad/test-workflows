@@ -452,15 +452,15 @@ jobs:
           
           ## 📦 Bitrise Workflows Triggered
           
-          | App | Platform | Environment | Workflow | Status |
-          |-----|----------|-------------|----------|--------|
+          | App | Platform | Environment | Workflow | Build # | Status |
+          |-----|----------|-------------|----------|---------|--------|
           EOF
           
           echo "$APPS" | jq -r '.[]' | while read app; do
             APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
             for platform in android ios; do
               for env in staging production; do
-                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ✅ Triggered (see build details above) |" >> $GITHUB_STEP_SUMMARY
+                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | [See details above ↑](#-bitrise-build-summary) | ✅ Triggered |" >> $GITHUB_STEP_SUMMARY
               done
             done
           done
