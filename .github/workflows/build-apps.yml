@@ -404,13 +404,21 @@ jobs:
           if [ "$BUILD_COMPLETED" = "true" ]; then
             case "$FINAL_STATUS" in
               "success")
-                if [ -n "$FINAL_INSTALL_URL" ] && [ "$FINAL_INSTALL_URL" != "null" ] && [ "$FINAL_INSTALL_URL" != "empty" ]; then
-                  echo "- **Build Number**: [#$BUILD_NUMBER]($FINAL_INSTALL_URL) 📱" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Install Page**: [Download App]($FINAL_INSTALL_URL) 🎉" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Status**: ✅ **SUCCESS** - Ready to install!" >> $GITHUB_STEP_SUMMARY
+                if [ "${{ matrix.platform }}" = "android" ]; then
+                  # Android builds should have install pages
+                  if [ -n "$FINAL_INSTALL_URL" ] && [ "$FINAL_INSTALL_URL" != "null" ] && [ "$FINAL_INSTALL_URL" != "empty" ]; then
+                    echo "- **Build Number**: [#$BUILD_NUMBER]($FINAL_INSTALL_URL) 📱" >> $GITHUB_STEP_SUMMARY
+                    echo "- **Install Page**: [Download APK]($FINAL_INSTALL_URL) 🤖" >> $GITHUB_STEP_SUMMARY
+                    echo "- **Status**: ✅ **SUCCESS** - Ready to install!" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                    echo "- **Install Page**: _No install page available_" >> $GITHUB_STEP_SUMMARY
+                    echo "- **Status**: ✅ **SUCCESS** - Check Bitrise for APK" >> $GITHUB_STEP_SUMMARY
+                  fi
                 else
+                  # iOS builds don't need install pages
                   echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Install Page**: _No install page available_" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Install Page**: _iOS build (TestFlight/App Store)_ 🍎" >> $GITHUB_STEP_SUMMARY
                   echo "- **Status**: ✅ **SUCCESS** - Check Bitrise for artifacts" >> $GITHUB_STEP_SUMMARY
                 fi
                 ;;
@@ -603,8 +611,8 @@ jobs:
                   STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
                   COMPLETED=$(echo "$BUILD_DATA" | jq -r '.completed')
                   
-                  # Format build number with hyperlink if available
-                  if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                  # Format build number with hyperlink if available (Android only)
+                  if [ "$platform" = "android" ] && [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
                     BUILD_DISPLAY="[#$BUILD_NUM]($INSTALL_URL)"
                   else
                     BUILD_DISPLAY="\`#$BUILD_NUM\`"
@@ -698,7 +706,7 @@ jobs:
             PROD_ANDROID="N/A"
             PROD_IOS="N/A"
             
-            # Check for Android staging
+            # Check for Android staging - with install page links
             if [ -f "build-results/${app}-android-staging.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-android-staging.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
