@@ -426,9 +426,10 @@ jobs:
           ## ⚠️ Important Notes
           
           1. **Build Numbers**: Individual Bitrise build numbers are shown in the build details above
-          2. **Check Bitrise** for individual build statuses and download artifacts
-          3. **Release Branch**: All builds are from \`release/$VERSION\`
-          4. **Workflow Naming**: Follows pattern \`{app}-{platform}-{environment}\`
+          2. **Install Pages**: Public install page links are available in the build details above (after build completion)
+          3. **Check Bitrise** for individual build statuses and download artifacts
+          4. **Release Branch**: All builds are from \`release/$VERSION\`
+          5. **Workflow Naming**: Follows pattern \`{app}-{platform}-{environment}\`
           
           ---
           *Builds triggered at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
