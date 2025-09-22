@@ -255,11 +255,52 @@ jobs:
           echo "⏳ Waiting for Bitrise build to complete..."
           echo "Build Slug: $BUILD_SLUG"
           echo "Maximum wait time: ${MAX_WAIT_TIME} seconds"
+          echo "API URL: https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}"
           
           while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
-            # Get build status
-            STATUS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
+            # Get build status with HTTP status code
+            HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
               "https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
+            
+            # Extract HTTP status and body
+            HTTP_STATUS=$(echo "$HTTP_RESPONSE" | grep -o 'HTTPSTATUS:[0-9]*' | cut -d: -f2)
+            STATUS_RESPONSE=$(echo "$HTTP_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+            
+            echo "HTTP Status: $HTTP_STATUS"
+            
+            # Check HTTP status first
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "⚠️ HTTP $HTTP_STATUS from Bitrise API (elapsed: ${elapsed_time}s)"
+              echo "Response body: $STATUS_RESPONSE"
+              
+              if [ "$HTTP_STATUS" = "404" ]; then
+                echo "❌ Build not found (404) - build slug may be invalid"
+                echo "final_status=not_found" >> $GITHUB_OUTPUT
+                echo "build_completed=false" >> $GITHUB_OUTPUT
+                exit 1
+              elif [ "$HTTP_STATUS" = "401" ]; then
+                echo "❌ Unauthorized (401) - check BITRISE_ACCESS_TOKEN"
+                echo "final_status=unauthorized" >> $GITHUB_OUTPUT
+                echo "build_completed=false" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+              
+              # For other HTTP errors, wait and retry
+              sleep $POLL_INTERVAL
+              elapsed_time=$((elapsed_time + POLL_INTERVAL))
+              continue
+            fi
+            
+            # Check if response is valid JSON
+            if ! echo "$STATUS_RESPONSE" | jq empty 2>/dev/null; then
+              echo "⚠️ Invalid JSON response from Bitrise API (elapsed: ${elapsed_time}s)"
+              echo "Response: $STATUS_RESPONSE"
+              
+              # Wait and retry for invalid JSON
+              sleep $POLL_INTERVAL
+              elapsed_time=$((elapsed_time + POLL_INTERVAL))
+              continue
+            fi
             
             BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
             FINISHED_AT=$(echo "$STATUS_RESPONSE" | jq -r '.data.finished_at // null')
@@ -271,7 +312,7 @@ jobs:
               echo "✅ Build finished with status: $BUILD_STATUS"
               
               # Extract final build details including public install page
-              FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty')
+              FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty' 2>/dev/null || echo "")
               
               echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
               echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
