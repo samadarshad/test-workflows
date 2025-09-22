@@ -156,12 +156,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.determine-build-parameters.outputs.version }}
+          ref: release/${{ needs.determine-build-parameters.outputs.version }}
       
       - name: Setup build environment
         run: |
           echo "🔨 Setting up build environment for ${{ matrix.app }}"
           echo "Version: ${{ needs.determine-build-parameters.outputs.version }}"
+          echo "Branch: release/${{ needs.determine-build-parameters.outputs.version }}"
           
           # Add your actual setup steps here
           # For example:
