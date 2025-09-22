@@ -69,6 +69,7 @@ jobs:
             fi
             
             echo "Using manual version: $VERSION"
+            LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
           else
             # Get the latest tag that matches version pattern
             LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
