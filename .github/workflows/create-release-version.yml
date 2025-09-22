@@ -274,6 +274,8 @@ jobs:
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version_mode }} |
+          | **Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
+          | **Branch Status** | $([ "${{ steps.create-branch.outputs.branch_exists }}" == "true" ] && echo "⚠️ Already existed" || echo "✅ Newly created") |
           | **Tag** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Commit** | \`${{ github.sha }}\` |
           | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
@@ -287,6 +289,15 @@ jobs:
           2. Click "Run workflow"
           3. Select version: **${{ steps.determine-version.outputs.version }}**
           4. Choose which apps to build
+          
+          ## 📌 Release Branch
+          
+          A release branch has been created: \`${{ steps.create-branch.outputs.branch_name }}\`
+          
+          You can:
+          - Cherry-pick fixes to this branch for hotfixes
+          - Use this branch for production deployments
+          - Create patch releases from this branch
           
           ---
           *Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
