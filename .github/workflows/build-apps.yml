@@ -244,42 +244,111 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
-      - name: Wait for Bitrise build to start
+      - name: Wait for Bitrise build completion
+        id: wait-for-completion
         run: |
-          echo "⏳ Waiting for Bitrise build to start..."
-          sleep 10
-          
-          # Optionally check build status
           BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
+          MAX_WAIT_TIME=3600  # 1 hour maximum wait time
+          POLL_INTERVAL=30    # Check every 30 seconds
+          elapsed_time=0
           
-          if [ -n "$BUILD_SLUG" ]; then
+          echo "⏳ Waiting for Bitrise build to complete..."
+          echo "Build Slug: $BUILD_SLUG"
+          echo "Maximum wait time: ${MAX_WAIT_TIME} seconds"
+          
+          while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
+            # Get build status
             STATUS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
               "https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
             
             BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
-            echo "Build Status: $BUILD_STATUS"
+            FINISHED_AT=$(echo "$STATUS_RESPONSE" | jq -r '.data.finished_at // null')
+            
+            echo "Build Status: $BUILD_STATUS (elapsed: ${elapsed_time}s)"
+            
+            # Check if build is finished (success or failed)
+            if [ "$BUILD_STATUS" = "success" ] || [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ] || [ "$FINISHED_AT" != "null" ]; then
+              echo "✅ Build finished with status: $BUILD_STATUS"
+              
+              # Extract final build details including public install page
+              FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty')
+              
+              echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
+              echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+              echo "final_public_install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
+              echo "build_completed=true" >> $GITHUB_OUTPUT
+              
+              break
+            fi
+            
+            # Wait before next poll
+            sleep $POLL_INTERVAL
+            elapsed_time=$((elapsed_time + POLL_INTERVAL))
+          done
+          
+          # Check if we timed out
+          if [ $elapsed_time -ge $MAX_WAIT_TIME ]; then
+            echo "⚠️ Build did not complete within ${MAX_WAIT_TIME} seconds"
+            echo "final_status=timeout" >> $GITHUB_OUTPUT
+            echo "build_completed=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Create build summary entry
         run: |
-          PUBLIC_INSTALL_URL="${{ steps.trigger-bitrise.outputs.public_install_page_url }}"
+          BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
+          BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
+          FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
+          FINAL_INSTALL_URL="${{ steps.wait-for-completion.outputs.final_public_install_url }}"
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
           - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
-          - **Build Number**: \`${{ steps.trigger-bitrise.outputs.build_number }}\`
-          - **Bitrise Build**: [View Build](${{ steps.trigger-bitrise.outputs.build_url }})
           EOF
           
-          if [ -n "$PUBLIC_INSTALL_URL" ] && [ "$PUBLIC_INSTALL_URL" != "null" ] && [ "$PUBLIC_INSTALL_URL" != "empty" ]; then
-            echo "- **Install Page**: [Download App]($PUBLIC_INSTALL_URL)" >> $GITHUB_STEP_SUMMARY
+          # Show final build status and install links
+          if [ "$BUILD_COMPLETED" = "true" ]; then
+            case "$FINAL_STATUS" in
+              "success")
+                if [ -n "$FINAL_INSTALL_URL" ] && [ "$FINAL_INSTALL_URL" != "null" ] && [ "$FINAL_INSTALL_URL" != "empty" ]; then
+                  echo "- **Build Number**: [#$BUILD_NUMBER]($FINAL_INSTALL_URL) 📱" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Install Page**: [Download App]($FINAL_INSTALL_URL) 🎉" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status**: ✅ **SUCCESS** - Ready to install!" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Install Page**: _No install page available_" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status**: ✅ **SUCCESS** - Check Bitrise for artifacts" >> $GITHUB_STEP_SUMMARY
+                fi
+                ;;
+              "error")
+                echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                echo "- **Install Page**: _Build failed - no install page available_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ❌ **FAILED** - Check Bitrise for details" >> $GITHUB_STEP_SUMMARY
+                ;;
+              "aborted")
+                echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                echo "- **Install Page**: _Build was aborted_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ⚠️ **ABORTED**" >> $GITHUB_STEP_SUMMARY
+                ;;
+              "timeout")
+                echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                echo "- **Install Page**: _Build still in progress - check Bitrise_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ⏱️ **TIMEOUT** - Build taking longer than expected" >> $GITHUB_STEP_SUMMARY
+                ;;
+              *)
+                echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+                echo "- **Install Page**: _Status: $FINAL_STATUS_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ❓ **$FINAL_STATUS**" >> $GITHUB_STEP_SUMMARY
+                ;;
+            esac
           else
-            echo "- **Install Page**: _Will be available after build completion_" >> $GITHUB_STEP_SUMMARY
+            echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Install Page**: _Build did not complete within timeout_" >> $GITHUB_STEP_SUMMARY
+            echo "- **Status**: ⏱️ **TIMEOUT**" >> $GITHUB_STEP_SUMMARY
           fi
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          - **Status**: ✅ Triggered
+          - **Bitrise Build**: [View Build Details](${{ steps.trigger-bitrise.outputs.build_url }})
           
           EOF
   
