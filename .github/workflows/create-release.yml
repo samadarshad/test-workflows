@@ -234,6 +234,7 @@ jobs:
           ## Version Information
           - **Release Version**: \`${{ needs.prepare-release.outputs.version }}\`
           - **Version Mode**: ${{ github.event.inputs.version_mode }}
+          - **GitHub Release**: [View Release](${{ steps.create-release.outputs.html_url }})
           
           ## Apps to Build
           - **Selection Mode**: ${{ github.event.inputs.app_selection }}
@@ -249,6 +250,10 @@ jobs:
           echo '${{ needs.prepare-release.outputs.apps }}' | jq '.' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: \`${{ needs.prepare-release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL**: ${{ steps.create-release.outputs.html_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Workflow triggered by: @${{ github.actor }}*" >> $GITHUB_STEP_SUMMARY
