@@ -536,3 +536,172 @@ jobs:
           ---
           *Builds triggered at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
           EOF
+  
+  slack-notification:
+    needs: [determine-build-parameters, build-apps]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all build results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-result-*
+          merge-multiple: true
+          path: build-results/
+      
+      - name: Prepare Slack message
+        id: slack-message
+        run: |
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          
+          echo "📱 Preparing Slack message for release $VERSION"
+          
+          # Start building the message
+          cat > slack_message.txt << 'EOF'
+          Here are the builds for the release testing sessions:
+          
+          EOF
+          
+          # Process build results by app
+          APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+          
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "Processing app: $app"
+            
+            # Process builds for this app
+            STAGING_ANDROID="N/A"
+            STAGING_IOS="N/A"
+            PROD_ANDROID="N/A"
+            PROD_IOS="N/A"
+            
+            # Check for Android staging
+            if [ -f "build-results/${app}-android-staging.json" ]; then
+              BUILD_DATA=$(cat "build-results/${app}-android-staging.json")
+              BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
+              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              
+              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                STAGING_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
+              else
+                STAGING_ANDROID="$BUILD_NUM"
+              fi
+            fi
+            
+            # Check for iOS staging
+            if [ -f "build-results/${app}-ios-staging.json" ]; then
+              BUILD_DATA=$(cat "build-results/${app}-ios-staging.json")
+              BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
+              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              
+              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                STAGING_IOS="<$INSTALL_URL|$BUILD_NUM>"
+              else
+                STAGING_IOS="$BUILD_NUM"
+              fi
+            fi
+            
+            # Check for Android production
+            if [ -f "build-results/${app}-android-production.json" ]; then
+              BUILD_DATA=$(cat "build-results/${app}-android-production.json")
+              BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
+              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              
+              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                PROD_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
+              else
+                PROD_ANDROID="$BUILD_NUM"
+              fi
+            fi
+            
+            # Check for iOS production
+            if [ -f "build-results/${app}-ios-production.json" ]; then
+              BUILD_DATA=$(cat "build-results/${app}-ios-production.json")
+              BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
+              INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              
+              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                PROD_IOS="<$INSTALL_URL|$BUILD_NUM>"
+              else
+                PROD_IOS="$BUILD_NUM"
+              fi
+            fi
+            
+            # Append to message file
+            cat >> slack_message.txt << EOF
+          • *$app*
+            -- *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
+            -- *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
+          EOF
+          
+          done
+          
+          # Add footer
+          cat >> slack_message.txt << EOF
+          
+          :rocket: *Release:* $VERSION
+          :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>
+          EOF
+          
+          echo "Final Slack message:"
+          cat slack_message.txt
+      
+      - name: Send Slack notification
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping Slack notification"
+            exit 0
+          fi
+          
+          echo "📤 Sending Slack notification..."
+          
+          # Read the message and escape for JSON
+          MESSAGE_CONTENT=$(cat slack_message.txt | jq -Rs .)
+          
+          # Determine channel (use override if specified, otherwise webhook default)
+          CHANNEL_OVERRIDE=""
+          if [ -n "$SLACK_CHANNEL" ]; then
+            CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
+            echo "🎯 Overriding channel to: $SLACK_CHANNEL"
+          else
+            echo "📍 Using webhook default channel"
+          fi
+          
+          # Create JSON payload with optional channel override
+          PAYLOAD=$(cat << EOF
+          {
+            "text": "🚀 Build Results for Release ${{ needs.determine-build-parameters.outputs.version }}"$CHANNEL_OVERRIDE,
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": $MESSAGE_CONTENT
+                }
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "Payload preview:"
+          echo "$PAYLOAD" | jq .
+          
+          # Send to Slack
+          RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL")
+          
+          if [ "$RESPONSE" = "ok" ]; then
+            echo "✅ Slack notification sent successfully!"
+          else
+            echo "❌ Failed to send Slack notification. Response: $RESPONSE"
+            exit 1
+          fi
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
