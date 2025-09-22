@@ -1,0 +1,190 @@
+name: Create Release
+
+run-name: "${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || format('v{0}', github.event.inputs.version_mode) }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_selection:
+        description: 'App selection mode'
+        required: true
+        type: choice
+        options:
+          - all
+          - specific
+        default: all
+      
+      specific_app:
+        description: 'Specific app name (only used if app_selection is "specific")'
+        required: false
+        type: choice
+        options:
+          - ev.energy
+          - NGMA
+          - NGNY
+          - SVCE
+          - MCE
+          - ANWB
+        default: ev.energy
+      
+      version_mode:
+        description: 'Version mode'
+        required: true
+        type: choice
+        options:
+          - automatic
+          - manual
+        default: automatic
+      
+      manual_version:
+        description: 'Manual version override (e.g., v3.29.0) - only used if version_mode is "manual"'
+        required: false
+        type: string
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.determine-version.outputs.version }}
+      apps: ${{ steps.determine-apps.outputs.apps }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+      
+      - name: Determine version
+        id: determine-version
+        run: |
+          if [ "${{ github.event.inputs.version_mode }}" == "manual" ]; then
+            # Use manual version
+            VERSION="${{ github.event.inputs.manual_version }}"
+            
+            # Validate format
+            if ! echo "$VERSION" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+              echo "Error: Invalid version format. Expected format: vX.Y.Z (e.g., v3.28.0)"
+              exit 1
+            fi
+            
+            echo "Using manual version: $VERSION"
+          else
+            # Get the latest tag that matches version pattern
+            LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
+            
+            if [ -z "$LATEST_TAG" ]; then
+              # No previous tags found, start with v1.0.0
+              VERSION="v1.0.0"
+              echo "No previous tags found. Starting with $VERSION"
+            else
+              echo "Latest tag found: $LATEST_TAG"
+              
+              # Extract version numbers
+              VERSION_WITHOUT_V=${LATEST_TAG#v}
+              IFS='.' read -ra VERSION_PARTS <<< "$VERSION_WITHOUT_V"
+              
+              MAJOR=${VERSION_PARTS[0]}
+              MINOR=${VERSION_PARTS[1]}
+              PATCH=${VERSION_PARTS[2]}
+              
+              # Increment minor version and reset patch
+              NEW_MINOR=$((MINOR + 1))
+              VERSION="v${MAJOR}.${NEW_MINOR}.0"
+              
+              echo "Incremented version from $LATEST_TAG to $VERSION"
+            fi
+          fi
+          
+          # Validate that new version is higher than the latest
+          if [ -n "$LATEST_TAG" ]; then
+            # Compare versions
+            LATEST_TAG_FOR_COMPARE=${LATEST_TAG#v}
+            VERSION_FOR_COMPARE=${VERSION#v}
+            
+            # Use sort -V to compare versions
+            HIGHER_VERSION=$(printf '%s\n%s' "$LATEST_TAG_FOR_COMPARE" "$VERSION_FOR_COMPARE" | sort -V | tail -n 1)
+            
+            if [ "$HIGHER_VERSION" != "$VERSION_FOR_COMPARE" ]; then
+              echo "Error: New version $VERSION is not higher than latest tag $LATEST_TAG"
+              exit 1
+            fi
+            
+            if [ "$HIGHER_VERSION" == "$LATEST_TAG_FOR_COMPARE" ] && [ "$VERSION_FOR_COMPARE" == "$LATEST_TAG_FOR_COMPARE" ]; then
+              echo "Error: New version $VERSION is the same as latest tag $LATEST_TAG"
+              exit 1
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Version validated: $VERSION"
+      
+      - name: Determine apps to build
+        id: determine-apps
+        run: |
+          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+            APPS='["ev.energy", "NGMA", "NGNY", "SVCE", "MCE", "ANWB"]'
+            echo "Building all apps"
+          else
+            APPS='["${{ github.event.inputs.specific_app }}"]'
+            echo "Building specific app: ${{ github.event.inputs.specific_app }}"
+          fi
+          
+          echo "apps=$APPS" >> $GITHUB_OUTPUT
+      
+      - name: Display release information
+        run: |
+          echo "========================================="
+          echo "📦 RELEASE INFORMATION"
+          echo "========================================="
+          echo "Version: ${{ steps.determine-version.outputs.version }}"
+          echo "Apps to build: ${{ steps.determine-apps.outputs.apps }}"
+          echo "========================================="
+          
+          # Parse and display apps in a readable format
+          APPS='${{ steps.determine-apps.outputs.apps }}'
+          echo ""
+          echo "Apps list:"
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "  - $app"
+          done
+          echo ""
+          echo "========================================="
+  
+  print-summary:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Print release summary
+        run: |
+          echo "🚀 Release Summary"
+          echo "=================="
+          echo "Release Version: ${{ needs.prepare-release.outputs.version }}"
+          echo "Apps to Build: ${{ needs.prepare-release.outputs.apps }}"
+          
+      - name: Create job summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚀 Release Build Summary
+          
+          ## Version Information
+          - **Release Version**: \`${{ needs.prepare-release.outputs.version }}\`
+          - **Version Mode**: ${{ github.event.inputs.version_mode }}
+          
+          ## Apps to Build
+          - **Selection Mode**: ${{ github.event.inputs.app_selection }}
+          EOF
+          
+          if [ "${{ github.event.inputs.app_selection }}" == "specific" ]; then
+            echo "- **Selected App**: ${{ github.event.inputs.specific_app }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Apps List:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.prepare-release.outputs.apps }}' | jq '.' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Workflow triggered by: @${{ github.actor }}*" >> $GITHUB_STEP_SUMMARY
