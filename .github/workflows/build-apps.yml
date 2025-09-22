@@ -862,3 +862,146 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+  
+  cancel-bitrise-builds:
+    needs: [determine-build-parameters, build-apps]
+    runs-on: ubuntu-latest
+    if: cancelled()
+    
+    steps:
+      - name: Download build slug artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-slug-*
+          merge-multiple: true
+          path: build-slugs/
+        continue-on-error: true
+      
+      - name: Cancel Bitrise builds
+        env:
+          BITRISE_APP_ID: ${{ secrets.BITRISE_PROJECT_SLUG }}
+          BITRISE_ACCESS_TOKEN: ${{ secrets.BITRISE_ACCESS_TOKEN }}
+        run: |
+          echo "🚫 Workflow cancelled - attempting to cancel Bitrise builds..."
+          
+          CANCELLED_COUNT=0
+          TOTAL_BUILDS=0
+          
+          if [ ! -d "build-slugs" ]; then
+            echo "⚠️ No build slug artifacts found - builds may not have been triggered yet"
+            exit 0
+          fi
+          
+          # Process each build slug file
+          for build_file in build-slugs/*.json; do
+            if [ ! -f "$build_file" ]; then
+              echo "⚠️ No build slug files found"
+              continue
+            fi
+            
+            TOTAL_BUILDS=$((TOTAL_BUILDS + 1))
+            
+            # Extract build information
+            BUILD_DATA=$(cat "$build_file")
+            BUILD_SLUG=$(echo "$BUILD_DATA" | jq -r '.build_slug')
+            APP=$(echo "$BUILD_DATA" | jq -r '.app')
+            PLATFORM=$(echo "$BUILD_DATA" | jq -r '.platform')
+            ENVIRONMENT=$(echo "$BUILD_DATA" | jq -r '.environment')
+            BUILD_URL=$(echo "$BUILD_DATA" | jq -r '.build_url')
+            
+            echo ""
+            echo "📱 Processing: $APP ($PLATFORM/$ENVIRONMENT)"
+            echo "🔗 Build Slug: $BUILD_SLUG"
+            echo "🌐 Build URL: $BUILD_URL"
+            
+            # Check current build status first
+            echo "🔍 Checking current build status..."
+            STATUS_RESPONSE=$(curl -s -H "Authorization: token ${BITRISE_ACCESS_TOKEN}" \
+              "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds/${BUILD_SLUG}")
+            
+            if ! echo "$STATUS_RESPONSE" | jq empty 2>/dev/null; then
+              echo "❌ Failed to get build status (invalid JSON response)"
+              continue
+            fi
+            
+            BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
+            FINISHED_AT=$(echo "$STATUS_RESPONSE" | jq -r '.data.finished_at // null')
+            
+            echo "📊 Current Status: $BUILD_STATUS"
+            
+            # Skip if build is already finished
+            if [ "$BUILD_STATUS" = "success" ] || [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ] || [ "$FINISHED_AT" != "null" ]; then
+              echo "✅ Build already finished ($BUILD_STATUS) - skipping cancellation"
+              continue
+            fi
+            
+            # Attempt to cancel the build
+            echo "🚫 Attempting to cancel build..."
+            CANCEL_RESPONSE=$(curl -s -X POST -w "HTTPSTATUS:%{http_code}" \
+              -H "Authorization: token ${BITRISE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds/${BUILD_SLUG}/abort")
+            
+            # Extract HTTP status and response
+            HTTP_STATUS=$(echo "$CANCEL_RESPONSE" | grep -o 'HTTPSTATUS:[0-9]*' | cut -d: -f2)
+            CANCEL_DATA=$(echo "$CANCEL_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+            
+            echo "🌐 HTTP Status: $HTTP_STATUS"
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Successfully cancelled Bitrise build for $APP ($PLATFORM/$ENVIRONMENT)"
+              CANCELLED_COUNT=$((CANCELLED_COUNT + 1))
+            elif [ "$HTTP_STATUS" = "400" ]; then
+              echo "⚠️ Build cannot be cancelled (likely already finished or not running)"
+            elif [ "$HTTP_STATUS" = "404" ]; then
+              echo "❌ Build not found - may have been already cancelled or removed"
+            else
+              echo "❌ Failed to cancel build (HTTP $HTTP_STATUS)"
+              echo "Response: $CANCEL_DATA"
+            fi
+          done
+          
+          echo ""
+          echo "📊 Cancellation Summary:"
+          echo "  Total builds processed: $TOTAL_BUILDS"
+          echo "  Successfully cancelled: $CANCELLED_COUNT"
+          echo "  Skipped (already finished): $((TOTAL_BUILDS - CANCELLED_COUNT))"
+          
+          if [ $CANCELLED_COUNT -gt 0 ]; then
+            echo "✅ Cancelled $CANCELLED_COUNT Bitrise build(s) due to workflow cancellation"
+          else
+            echo "ℹ️ No running builds found to cancel"
+          fi
+      
+      - name: Create cancellation summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚫 Workflow Cancelled - Bitrise Build Cleanup
+          
+          ## 📋 Cancellation Information
+          
+          | Field | Value |
+          |-------|-------|
+          | **Cancelled At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          | **Version** | \`${{ needs.determine-build-parameters.outputs.version }}\` |
+          | **Triggered by** | @${{ github.actor }} |
+          | **Workflow Run** | #${{ github.run_number }} |
+          
+          ## 🚫 Build Cancellation Status
+          
+          The workflow was cancelled and we attempted to cancel any running Bitrise builds to prevent unnecessary resource usage.
+          
+          **Note**: 
+          - Builds that were already completed (success/error/aborted) were left as-is
+          - Only running or queued builds were cancelled
+          - Check the job logs above for detailed cancellation results
+          
+          ## 🔗 Links
+          
+          - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
+          
+          ---
+          *Cancellation processed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          EOF
