@@ -377,7 +377,7 @@ jobs:
             APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
             for platform in android ios; do
               for env in staging production; do
-                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ✅ Triggered |" >> $GITHUB_STEP_SUMMARY
+                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ✅ Triggered (see build details above) |" >> $GITHUB_STEP_SUMMARY
               done
             done
           done
@@ -411,9 +411,10 @@ jobs:
           
           ## ⚠️ Important Notes
           
-          1. **Check Bitrise** for individual build statuses and download artifacts
-          2. **Release Branch**: All builds are from \`release/$VERSION\`
-          3. **Workflow Naming**: Follows pattern \`{app}-{platform}-{environment}\`
+          1. **Build Numbers**: Individual Bitrise build numbers are shown in the build details above
+          2. **Check Bitrise** for individual build statuses and download artifacts
+          3. **Release Branch**: All builds are from \`release/$VERSION\`
+          4. **Workflow Naming**: Follows pattern \`{app}-{platform}-{environment}\`
           
           ---
           *Builds triggered at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
