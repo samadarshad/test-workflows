@@ -252,6 +252,35 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
+      - name: Save build slug for cancellation
+        run: |
+          BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
+          
+          # Create build slug info for cancellation purposes
+          BUILD_INFO=$(cat <<EOF
+          {
+            "app": "${{ matrix.app }}",
+            "platform": "${{ matrix.platform }}",
+            "environment": "${{ matrix.environment }}",
+            "build_slug": "$BUILD_SLUG",
+            "build_url": "${{ steps.trigger-bitrise.outputs.build_url }}",
+            "workflow_name": "${{ steps.build-config.outputs.workflow_name }}",
+            "triggered_at": "$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          }
+          EOF
+          )
+          
+          # Save to cancellation artifacts directory
+          mkdir -p build-slugs
+          echo "$BUILD_INFO" > "build-slugs/${{ matrix.app }}-${{ matrix.platform }}-${{ matrix.environment }}.json"
+      
+      - name: Upload build slug for cancellation
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-slug-${{ matrix.app }}-${{ matrix.platform }}-${{ matrix.environment }}
+          path: build-slugs/
+          retention-days: 1
+      
       - name: Wait for Bitrise build completion
         id: wait-for-completion
         run: |
