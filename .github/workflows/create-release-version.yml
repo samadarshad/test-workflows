@@ -1,33 +1,10 @@
-name: Create Release
+name: Create Release Version
 
-# The run-name will show what was selected at trigger time
-run-name: "Create Release: ${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || 'Auto-increment' }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
+run-name: "Create Release: ${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || 'Auto-increment' }}"
 
 on:
   workflow_dispatch:
     inputs:
-      app_selection:
-        description: 'App selection mode'
-        required: true
-        type: choice
-        options:
-          - all
-          - specific
-        default: all
-      
-      specific_app:
-        description: 'Specific app name (only used if app_selection is "specific")'
-        required: false
-        type: choice
-        options:
-          - ev.energy
-          - NGMA
-          - NGNY
-          - SVCE
-          - MCE
-          - ANWB
-        default: ev.energy
-      
       version_mode:
         description: 'Version mode'
         required: true
@@ -43,11 +20,13 @@ on:
         type: string
 
 jobs:
-  prepare-release:
+  create-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases and tags
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
-      apps: ${{ steps.determine-apps.outputs.apps }}
+      release_url: ${{ steps.create-release.outputs.html_url }}
     
     steps:
       - name: Checkout repository
@@ -127,55 +106,10 @@ jobs:
           echo "╚════════════════════════════════════════╝"
           echo ""
       
-      - name: Determine apps to build
-        id: determine-apps
-        run: |
-          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
-            APPS='["ev.energy", "NGMA", "NGNY", "SVCE", "MCE", "ANWB"]'
-            echo "Building all apps"
-          else
-            APPS='["${{ github.event.inputs.specific_app }}"]'
-            echo "Building specific app: ${{ github.event.inputs.specific_app }}"
-          fi
-          
-          echo "apps=$APPS" >> $GITHUB_OUTPUT
-      
-      - name: Display release information
-        run: |
-          echo "========================================="
-          echo "📦 RELEASE INFORMATION"
-          echo "========================================="
-          echo "Version: ${{ steps.determine-version.outputs.version }}"
-          echo "Apps to build: ${{ steps.determine-apps.outputs.apps }}"
-          echo "========================================="
-          
-          # Parse and display apps in a readable format
-          APPS='${{ steps.determine-apps.outputs.apps }}'
-          echo ""
-          echo "Apps list:"
-          echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "  - $app"
-          done
-          echo ""
-          echo "========================================="
-  
-  create-release:
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Required for creating releases and tags
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
       - name: Generate release notes
         id: release-notes
         run: |
-          VERSION="${{ needs.prepare-release.outputs.version }}"
-          APPS='${{ needs.prepare-release.outputs.apps }}'
+          VERSION="${{ steps.determine-version.outputs.version }}"
           
           # Get the previous tag for comparison
           PREVIOUS_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 2 | head -n 1)
@@ -190,28 +124,11 @@ jobs:
           
           # Create release notes
           cat > release_notes.md << EOF
-          ## 📦 Apps Included
-          EOF
-          
-          # Add apps to release notes
-          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
-            echo "**All applications:**" >> release_notes.md
-          else
-            echo "**Single application:**" >> release_notes.md
-          fi
-          
-          echo '```' >> release_notes.md
-          echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "• $app" >> release_notes.md
-          done
-          echo '```' >> release_notes.md
-          
-          cat >> release_notes.md << EOF
-          
-          ## 🔧 Build Information
+          ## 🔧 Release Information
+          - **Version**: $VERSION
           - **Version Mode**: ${{ github.event.inputs.version_mode }}
-          - **Triggered by**: @${{ github.actor }}
-          - **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Created by**: @${{ github.actor }}
+          - **Release Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           - **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ## 🎯 What's Changed
@@ -285,6 +202,15 @@ jobs:
           # Add the compare link
           echo "**Full Changelog**: [$PREVIOUS_TAG...$VERSION](${{ github.server_url }}/${{ github.repository }}/compare/${PREVIOUS_TAG}...${VERSION})" >> release_notes.md
           echo "" >> release_notes.md
+          
+          cat >> release_notes.md << EOF
+          
+          ## 📦 Build Status
+          
+          ⏳ **Apps not yet built** - Use the [Build Apps workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) to build apps for this release.
+          
+          EOF
+          
           echo "---" >> release_notes.md
           echo "*This release was automatically generated by GitHub Actions*" >> release_notes.md
           
@@ -299,56 +225,42 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Using GitHub CLI which is pre-installed in GitHub Actions
-          gh release create "${{ needs.prepare-release.outputs.version }}" \
-            --title "${{ needs.prepare-release.outputs.version }}" \
+          gh release create "${{ steps.determine-version.outputs.version }}" \
+            --title "${{ steps.determine-version.outputs.version }}" \
             --notes-file release_notes.md \
             --target ${{ github.sha }}
           
           # Get the release URL
-          RELEASE_URL=$(gh release view "${{ needs.prepare-release.outputs.version }}" --json url -q .url)
+          RELEASE_URL=$(gh release view "${{ steps.determine-version.outputs.version }}" --json url -q .url)
           echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
           
           echo "✅ Release created: $RELEASE_URL"
       
-      - name: Print release summary
-        run: |
-          echo "🚀 Release Summary"
-          echo "=================="
-          echo "Release Version: ${{ needs.prepare-release.outputs.version }}"
-          echo "Apps to Build: ${{ needs.prepare-release.outputs.apps }}"
-          echo "Release URL: ${{ steps.create-release.outputs.html_url }}"
-          
       - name: Create job summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 🚀 Release Build Summary
+          # ✅ Release Created Successfully!
           
-          ## ✅ Release Created Successfully!
+          ## 📋 Release Details
           
-          ### Version Information
-          - **Release Version**: \`${{ needs.prepare-release.outputs.version }}\`
-          - **Version Mode**: ${{ github.event.inputs.version_mode }}
-          - **GitHub Release**: [View Release](${{ steps.create-release.outputs.html_url }})
+          | Field | Value |
+          |-------|-------|
+          | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
+          | **Type** | ${{ github.event.inputs.version_mode }} |
+          | **Tag** | \`${{ steps.determine-version.outputs.version }}\` |
+          | **Commit** | \`${{ github.sha }}\` |
+          | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
+          | **Created by** | @${{ github.actor }} |
+          | **Workflow Run** | #${{ github.run_number }} |
           
-          ### Apps to Build
-          - **Selection Mode**: ${{ github.event.inputs.app_selection }}
+          ## 🚀 Next Steps
+          
+          To build apps for this release:
+          1. Go to [Build Apps workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml)
+          2. Click "Run workflow"
+          3. Select version: **${{ steps.determine-version.outputs.version }}**
+          4. Choose which apps to build
+          
+          ---
+          *Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
           EOF
-          
-          if [ "${{ github.event.inputs.app_selection }}" == "specific" ]; then
-            echo "- **Selected App**: ${{ github.event.inputs.specific_app }}" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### Apps List:" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          echo '${{ needs.prepare-release.outputs.apps }}' | jq '.' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Release Details" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag**: \`${{ needs.prepare-release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Release URL**: ${{ steps.create-release.outputs.html_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Workflow triggered by: @${{ github.actor }} • Run #${{ github.run_number }}*" >> $GITHUB_STEP_SUMMARY
