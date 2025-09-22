@@ -292,14 +292,19 @@ jobs:
           
           ## 📦 Build Status
           
-          ✅ **Apps successfully built** at $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          ✅ **Bitrise builds triggered** at $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
-          ### Built Applications:
+          ### Triggered Builds:
           EOF
           
           echo '```' >> updated_notes.md
           echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "✓ $app - version $VERSION" >> updated_notes.md
+            APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
+            echo "✓ $app" >> updated_notes.md
+            echo "  - ${APP_LOWER}-android-staging" >> updated_notes.md
+            echo "  - ${APP_LOWER}-android-production" >> updated_notes.md
+            echo "  - ${APP_LOWER}-ios-staging" >> updated_notes.md
+            echo "  - ${APP_LOWER}-ios-production" >> updated_notes.md
           done
           echo '```' >> updated_notes.md
           
@@ -307,8 +312,11 @@ jobs:
           
           **Build Details:**
           - Build Workflow: [Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - Release Branch: \`release/$VERSION\`
           - Triggered by: @${{ github.actor }}
-          - Commit: \`${{ github.sha }}\`
+          - Total Builds: $(echo "$APPS" | jq -r '. | length * 4') (4 per app: android/ios × staging/production)
+          
+          > **Note**: Check Bitrise for individual build statuses and artifacts.
           
           EOF
           
@@ -324,7 +332,7 @@ jobs:
           # Update the release
           gh release edit "$VERSION" --notes-file updated_notes.md
           
-          echo "✅ Release $VERSION updated with build status"
+          echo "✅ Release $VERSION updated with Bitrise build status"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
