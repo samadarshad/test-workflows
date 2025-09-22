@@ -263,6 +263,7 @@ jobs:
           ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
           - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
+          - **Build Number**: \`${{ steps.trigger-bitrise.outputs.build_number }}\`
           - **Bitrise Build**: [View Build](${{ steps.trigger-bitrise.outputs.build_url }})
           - **Status**: ✅ Triggered
           
