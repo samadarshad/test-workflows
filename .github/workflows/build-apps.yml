@@ -1,0 +1,324 @@
+name: Build Apps
+
+run-name: "Build Apps: ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || github.event.inputs.manual_version }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_source:
+        description: 'Version source'
+        required: true
+        type: choice
+        options:
+          - latest
+          - manual
+        default: latest
+      
+      manual_version:
+        description: 'Manual version (e.g., v3.28.0) - only used if version_source is "manual"'
+        required: false
+        type: string
+      
+      app_selection:
+        description: 'Apps to build'
+        required: true
+        type: choice
+        options:
+          - all
+          - specific
+        default: all
+      
+      specific_app:
+        description: 'Specific app name (only used if app_selection is "specific")'
+        required: false
+        type: choice
+        options:
+          - ev.energy
+          - NGMA
+          - NGNY
+          - SVCE
+          - MCE
+          - ANWB
+        default: ev.energy
+
+jobs:
+  determine-build-parameters:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.determine-version.outputs.version }}
+      apps: ${{ steps.determine-apps.outputs.apps }}
+      release_exists: ${{ steps.check-release.outputs.exists }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Determine version to build
+        id: determine-version
+        run: |
+          if [ "${{ github.event.inputs.version_source }}" == "latest" ]; then
+            # Get the latest release tag
+            VERSION=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+            
+            if [ -z "$VERSION" ]; then
+              echo "Error: No releases found. Please create a release first using the 'Create Release Version' workflow."
+              exit 1
+            fi
+            
+            echo "Using latest release: $VERSION"
+          else
+            # Use manual version
+            VERSION="${{ github.event.inputs.manual_version }}"
+            
+            # Validate format
+            if ! echo "$VERSION" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+              echo "Error: Invalid version format. Expected format: vX.Y.Z (e.g., v3.28.0)"
+              exit 1
+            fi
+            
+            echo "Using manual version: $VERSION"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Display version banner
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║     BUILD VERSION: $VERSION           "
+          echo "╚════════════════════════════════════════╝"
+          echo ""
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Check if release exists
+        id: check-release
+        run: |
+          VERSION="${{ steps.determine-version.outputs.version }}"
+          
+          # Check if the release exists
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "✅ Release $VERSION exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            
+            # Get release URL for reference
+            RELEASE_URL=$(gh release view "$VERSION" --json url -q .url)
+            echo "Release URL: $RELEASE_URL"
+          else
+            echo "⚠️ Warning: Release $VERSION does not exist yet"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Determine apps to build
+        id: determine-apps
+        run: |
+          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+            APPS='["ev.energy", "NGMA", "NGNY", "SVCE", "MCE", "ANWB"]'
+            echo "Building all apps"
+          else
+            APPS='["${{ github.event.inputs.specific_app }}"]'
+            echo "Building specific app: ${{ github.event.inputs.specific_app }}"
+          fi
+          
+          echo "apps=$APPS" >> $GITHUB_OUTPUT
+      
+      - name: Display build information
+        run: |
+          echo "========================================="
+          echo "📦 BUILD CONFIGURATION"
+          echo "========================================="
+          echo "Version: ${{ steps.determine-version.outputs.version }}"
+          echo "Release Exists: ${{ steps.check-release.outputs.exists }}"
+          echo "Apps to build: ${{ steps.determine-apps.outputs.apps }}"
+          echo "========================================="
+          
+          # Parse and display apps in a readable format
+          APPS='${{ steps.determine-apps.outputs.apps }}'
+          echo ""
+          echo "Apps list:"
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "  - $app"
+          done
+          echo ""
+          echo "========================================="
+  
+  build-apps:
+    needs: determine-build-parameters
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.determine-build-parameters.outputs.apps) }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.determine-build-parameters.outputs.version }}
+      
+      - name: Setup build environment
+        run: |
+          echo "🔨 Setting up build environment for ${{ matrix.app }}"
+          echo "Version: ${{ needs.determine-build-parameters.outputs.version }}"
+          
+          # Add your actual setup steps here
+          # For example:
+          # - Setup Node.js
+          # - Install dependencies
+          # - Configure environment variables
+      
+      - name: Build app
+        run: |
+          echo "🚀 Building ${{ matrix.app }} version ${{ needs.determine-build-parameters.outputs.version }}"
+          
+          # Add your actual build commands here
+          # This is a placeholder that simulates a build process
+          echo "Building ${{ matrix.app }}..."
+          sleep 2  # Simulate build time
+          
+          # Example build commands (replace with your actual build process):
+          # npm ci
+          # npm run build:${{ matrix.app }}
+          # or
+          # ./build.sh ${{ matrix.app }} ${{ needs.determine-build-parameters.outputs.version }}
+          
+          echo "✅ Build completed for ${{ matrix.app }}"
+      
+      - name: Upload build artifacts
+        run: |
+          echo "📤 Uploading artifacts for ${{ matrix.app }}"
+          
+          # Add your actual artifact upload steps here
+          # For example, upload to S3, artifact registry, etc.
+          
+          # Placeholder: Create a dummy build artifact
+          mkdir -p dist
+          echo "Build artifact for ${{ matrix.app }} version ${{ needs.determine-build-parameters.outputs.version }}" > dist/${{ matrix.app }}-${{ needs.determine-build-parameters.outputs.version }}.txt
+          
+          # Example: Upload as GitHub artifact
+          # - name: Upload artifact
+          #   uses: actions/upload-artifact@v3
+          #   with:
+          #     name: ${{ matrix.app }}-${{ needs.determine-build-parameters.outputs.version }}
+          #     path: dist/
+  
+  update-release:
+    needs: [determine-build-parameters, build-apps]
+    runs-on: ubuntu-latest
+    if: needs.determine-build-parameters.outputs.release_exists == 'true'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Update release with build status
+        run: |
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+          
+          echo "📝 Updating release $VERSION with build information"
+          
+          # Get current release notes
+          gh release view "$VERSION" --json body -q .body > current_notes.md
+          
+          # Create updated notes with build status
+          cat > updated_notes.md << EOF
+          $(grep -B 1000 "## 📦 Build Status" current_notes.md | head -n -2 || cat current_notes.md)
+          
+          ## 📦 Build Status
+          
+          ✅ **Apps successfully built** at $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ### Built Applications:
+          EOF
+          
+          echo '```' >> updated_notes.md
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "✓ $app - version $VERSION" >> updated_notes.md
+          done
+          echo '```' >> updated_notes.md
+          
+          cat >> updated_notes.md << EOF
+          
+          **Build Details:**
+          - Build Workflow: [Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - Triggered by: @${{ github.actor }}
+          - Commit: \`${{ github.sha }}\`
+          
+          EOF
+          
+          # Add the rest of the original notes if there's content after Build Status
+          if grep -A 1000 "## 📦 Build Status" current_notes.md | tail -n +3 | grep -q "^---"; then
+            echo "" >> updated_notes.md
+            grep -A 1000 "^---" current_notes.md >> updated_notes.md
+          else
+            echo "---" >> updated_notes.md
+            echo "*This release was automatically generated by GitHub Actions*" >> updated_notes.md
+          fi
+          
+          # Update the release
+          gh release edit "$VERSION" --notes-file updated_notes.md
+          
+          echo "✅ Release $VERSION updated with build status"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  summary:
+    needs: [determine-build-parameters, build-apps]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Create job summary
+        run: |
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+          RELEASE_EXISTS="${{ needs.determine-build-parameters.outputs.release_exists }}"
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚀 Build Summary
+          
+          ## 📋 Build Information
+          
+          | Field | Value |
+          |-------|-------|
+          | **Version** | \`$VERSION\` |
+          | **Version Source** | ${{ github.event.inputs.version_source }} |
+          | **Release Exists** | $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Yes" || echo "⚠️ No") |
+          | **App Selection** | ${{ github.event.inputs.app_selection }} |
+          | **Triggered by** | @${{ github.actor }} |
+          | **Workflow Run** | #${{ github.run_number }} |
+          
+          ## 📦 Apps Built
+          
+          | App | Status |
+          |-----|--------|
+          EOF
+          
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "| $app | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          
+          ## 🔗 Links
+          
+          EOF
+          
+          if [ "$RELEASE_EXISTS" == "true" ]; then
+            echo "- [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ No release found for version $VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "- [Create Release](https://github.com/${{ github.repository }}/actions/workflows/create-release-version.yml)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ---
+          *Build completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          EOF
