@@ -427,12 +427,12 @@ jobs:
               "error")
                 echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
                 echo "- **Install Page**: _Build failed - no install page available_" >> $GITHUB_STEP_SUMMARY
-                echo "- **Status**: ❌ **FAILED** - Check Bitrise for details" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ❌ **FAILED** - [View Build Details](${{ steps.trigger-bitrise.outputs.build_url }})" >> $GITHUB_STEP_SUMMARY
                 ;;
               "aborted")
                 echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
                 echo "- **Install Page**: _Build was aborted_" >> $GITHUB_STEP_SUMMARY
-                echo "- **Status**: ⚠️ **ABORTED**" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ⚠️ **ABORTED** - [View Build Details](${{ steps.trigger-bitrise.outputs.build_url }})" >> $GITHUB_STEP_SUMMARY
                 ;;
               "timeout")
                 echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
