@@ -220,10 +220,11 @@ jobs:
               }
             }")
           
-          # Extract build URL, status, and build number
+          # Extract build URL, status, build number, and public install page URL
           BUILD_URL=$(echo "$RESPONSE" | jq -r '.build_url // empty')
           BUILD_SLUG=$(echo "$RESPONSE" | jq -r '.build_slug // empty')
           BUILD_NUMBER=$(echo "$RESPONSE" | jq -r '.build_number // empty')
+          PUBLIC_INSTALL_PAGE_URL=$(echo "$RESPONSE" | jq -r '.public_install_page_url // empty')
           STATUS=$(echo "$RESPONSE" | jq -r '.status // empty')
           
           if [ -z "$BUILD_URL" ] || [ "$STATUS" == "error" ]; then
@@ -236,10 +237,12 @@ jobs:
           echo "Build URL: $BUILD_URL"
           echo "Build Slug: $BUILD_SLUG"
           echo "Build Number: $BUILD_NUMBER"
+          echo "Public Install Page: $PUBLIC_INSTALL_PAGE_URL"
           
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
           echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
       - name: Wait for Bitrise build to start
         run: |
