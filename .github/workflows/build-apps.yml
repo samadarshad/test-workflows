@@ -151,59 +151,119 @@ jobs:
     strategy:
       matrix:
         app: ${{ fromJson(needs.determine-build-parameters.outputs.apps) }}
+        platform: [android, ios]
+        environment: [staging, production]
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: release/${{ needs.determine-build-parameters.outputs.version }}
-      
-      - name: Setup build environment
+      - name: Prepare build configuration
+        id: build-config
         run: |
-          echo "🔨 Setting up build environment for ${{ matrix.app }}"
-          echo "Version: ${{ needs.determine-build-parameters.outputs.version }}"
-          echo "Branch: release/${{ needs.determine-build-parameters.outputs.version }}"
+          # Convert app name to lowercase and remove dots for workflow name
+          APP_NAME="${{ matrix.app }}"
+          APP_NAME_LOWER=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]')
+          APP_NAME_CLEAN=$(echo "$APP_NAME_LOWER" | tr -d '.')
           
-          # Add your actual setup steps here
-          # For example:
-          # - Setup Node.js
-          # - Install dependencies
-          # - Configure environment variables
+          # Construct workflow name
+          WORKFLOW_NAME="${APP_NAME_CLEAN}-${{ matrix.platform }}-${{ matrix.environment }}"
+          
+          # Release branch name
+          BRANCH_NAME="release/${{ needs.determine-build-parameters.outputs.version }}"
+          
+          echo "app_name_clean=$APP_NAME_CLEAN" >> $GITHUB_OUTPUT
+          echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          echo "📱 Build Configuration:"
+          echo "  App: ${{ matrix.app }}"
+          echo "  Platform: ${{ matrix.platform }}"
+          echo "  Environment: ${{ matrix.environment }}"
+          echo "  Workflow: $WORKFLOW_NAME"
+          echo "  Branch: $BRANCH_NAME"
+          echo "  Version: ${{ needs.determine-build-parameters.outputs.version }}"
       
-      - name: Build app
+      - name: Trigger Bitrise build
+        id: trigger-bitrise
+        env:
+          BITRISE_APP_ID: ${{ secrets.BITRISE_PROJECT_SLUG }}
+          BITRISE_ACCESS_TOKEN: ${{ secrets.BITRISE_ACCESS_TOKEN }}
         run: |
-          echo "🚀 Building ${{ matrix.app }} version ${{ needs.determine-build-parameters.outputs.version }}"
+          WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
+          BRANCH_NAME="${{ steps.build-config.outputs.branch_name }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           
-          # Add your actual build commands here
-          # This is a placeholder that simulates a build process
-          echo "Building ${{ matrix.app }}..."
-          sleep 2  # Simulate build time
+          echo "🚀 Triggering Bitrise build for $WORKFLOW_NAME"
           
-          # Example build commands (replace with your actual build process):
-          # npm ci
-          # npm run build:${{ matrix.app }}
-          # or
-          # ./build.sh ${{ matrix.app }} ${{ needs.determine-build-parameters.outputs.version }}
+          # Trigger Bitrise build using personal access token
+          RESPONSE=$(curl -X POST "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds" \
+            -H "Authorization: token ${BITRISE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"hook_info\": {
+                \"type\": \"bitrise\"
+              },
+              \"build_params\": {
+                \"branch\": \"${BRANCH_NAME}\",
+                \"workflow_id\": \"${WORKFLOW_NAME}\",
+                \"environments\": [
+                  {
+                    \"mapped_to\": \"RELEASE_VERSION\",
+                    \"value\": \"${VERSION}\",
+                    \"is_expand\": true
+                  },
+                  {
+                    \"mapped_to\": \"TRIGGERED_BY\",
+                    \"value\": \"GitHub Actions - ${{ github.actor }}\",
+                    \"is_expand\": true
+                  }
+                ],
+                \"commit_message\": \"Build ${VERSION} - ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }})\"
+              }
+            }")
           
-          echo "✅ Build completed for ${{ matrix.app }}"
+          # Extract build URL and status
+          BUILD_URL=$(echo "$RESPONSE" | jq -r '.build_url // empty')
+          BUILD_SLUG=$(echo "$RESPONSE" | jq -r '.build_slug // empty')
+          STATUS=$(echo "$RESPONSE" | jq -r '.status // empty')
+          
+          if [ -z "$BUILD_URL" ] || [ "$STATUS" == "error" ]; then
+            echo "❌ Failed to trigger Bitrise build"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "✅ Bitrise build triggered successfully"
+          echo "Build URL: $BUILD_URL"
+          echo "Build Slug: $BUILD_SLUG"
+          
+          echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+          echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
       
-      - name: Upload build artifacts
+      - name: Wait for Bitrise build to start
         run: |
-          echo "📤 Uploading artifacts for ${{ matrix.app }}"
+          echo "⏳ Waiting for Bitrise build to start..."
+          sleep 10
           
-          # Add your actual artifact upload steps here
-          # For example, upload to S3, artifact registry, etc.
+          # Optionally check build status
+          BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
           
-          # Placeholder: Create a dummy build artifact
-          mkdir -p dist
-          echo "Build artifact for ${{ matrix.app }} version ${{ needs.determine-build-parameters.outputs.version }}" > dist/${{ matrix.app }}-${{ needs.determine-build-parameters.outputs.version }}.txt
+          if [ -n "$BUILD_SLUG" ]; then
+            STATUS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
+              "https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
+            
+            BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
+            echo "Build Status: $BUILD_STATUS"
+          fi
+      
+      - name: Create build summary entry
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
+          - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
+          - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
+          - **Bitrise Build**: [View Build](${{ steps.trigger-bitrise.outputs.build_url }})
+          - **Status**: ✅ Triggered
           
-          # Example: Upload as GitHub artifact
-          # - name: Upload artifact
-          #   uses: actions/upload-artifact@v3
-          #   with:
-          #     name: ${{ matrix.app }}-${{ needs.determine-build-parameters.outputs.version }}
-          #     path: dist/
+          EOF
   
   update-release:
     needs: [determine-build-parameters, build-apps]
