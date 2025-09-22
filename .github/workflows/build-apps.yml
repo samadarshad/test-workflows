@@ -319,23 +319,46 @@ jobs:
             if [ "$BUILD_STATUS" = "success" ] || [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ] || [ "$FINISHED_AT" != "null" ]; then
               echo "✅ Build finished with status: $BUILD_STATUS"
               
-              # Debug: Show full build completion response
-              echo "🔍 Full build completion response:"
-              echo "$STATUS_RESPONSE" | jq .data
+              # Debug: Show full build completion response (only for Android)
+              if [ "${{ matrix.platform }}" = "android" ]; then
+                echo "🔍 Full build completion response:"
+                echo "$STATUS_RESPONSE" | jq .data
+              fi
               
-              # Extract final build details including public install page
-              FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty' 2>/dev/null || echo "")
+              # Extract final build details including public install page (Android only)
+              FINAL_PUBLIC_INSTALL_URL=""
               
-              # Try alternative field names
-              if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                echo "🔍 Trying alternative install page fields:"
-                FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page // empty' 2>/dev/null || echo "")
-                echo "public_install_page: $FINAL_PUBLIC_INSTALL_URL"
+              if [ "${{ matrix.platform }}" = "android" ]; then
+                echo "🤖 Android build - checking for public install page URL"
+                FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page_url // empty' 2>/dev/null || echo "")
                 
+                # Try alternative field names for Android
                 if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                  FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.install_page_url // empty' 2>/dev/null || echo "")
-                  echo "install_page_url: $FINAL_PUBLIC_INSTALL_URL"
+                  echo "🔍 Trying alternative install page fields:"
+                  FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.public_install_page // empty' 2>/dev/null || echo "")
+                  echo "public_install_page: $FINAL_PUBLIC_INSTALL_URL"
+                  
+                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                    FINAL_PUBLIC_INSTALL_URL=$(echo "$STATUS_RESPONSE" | jq -r '.data.install_page_url // empty' 2>/dev/null || echo "")
+                    echo "install_page_url: $FINAL_PUBLIC_INSTALL_URL"
+                  fi
+                  
+                  # Try fetching from artifacts API for Android builds
+                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                    echo "🔍 Checking artifacts API for Android APK install page:"
+                    ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
+                      "https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}/artifacts")
+                    
+                    echo "Artifacts API response:"
+                    echo "$ARTIFACTS_RESPONSE" | jq .
+                    
+                    # Look for APK files with public install page
+                    FINAL_PUBLIC_INSTALL_URL=$(echo "$ARTIFACTS_RESPONSE" | jq -r '.data[] | select(.title | test(".*\\.apk$")) | .public_install_page_url // empty' | head -1)
+                    echo "Found APK install page: $FINAL_PUBLIC_INSTALL_URL"
+                  fi
                 fi
+              else
+                echo "🍎 iOS build - public install page not needed (using TestFlight/App Store)"
               fi
               
               echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
