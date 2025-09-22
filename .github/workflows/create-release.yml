@@ -208,15 +208,20 @@ jobs:
       
       - name: Create GitHub Release
         id: create-release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ needs.prepare-release.outputs.version }}
-          release_name: Release ${{ needs.prepare-release.outputs.version }}
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
+        run: |
+          # Using GitHub CLI which is pre-installed in GitHub Actions
+          gh release create "${{ needs.prepare-release.outputs.version }}" \
+            --title "Release ${{ needs.prepare-release.outputs.version }}" \
+            --notes-file release_notes.md \
+            --target ${{ github.sha }}
+          
+          # Get the release URL
+          RELEASE_URL=$(gh release view "${{ needs.prepare-release.outputs.version }}" --json url -q .url)
+          echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Release created: $RELEASE_URL"
       
       - name: Print release summary
         run: |
