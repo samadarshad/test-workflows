@@ -597,13 +597,7 @@ jobs:
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           
           echo "📱 Preparing Slack message for release $VERSION"
-          
-          # Start building the message
-          cat > slack_message.txt << 'EOF'
-          Here are the builds for the release testing sessions:
-          
-          EOF
-          
+                   
           # Process build results by app
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
@@ -675,8 +669,8 @@ jobs:
             # Append to message file
             cat >> slack_message.txt << EOF
           • *$app*
-            -- *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
-            -- *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
+            ▸ *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
+            ▸ *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
           EOF
           
           done
