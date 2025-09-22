@@ -285,6 +285,7 @@ jobs:
           
           # Output the release notes for debugging
           echo "Release notes generated:"
+          echo "========================"
           cat release_notes.md
       
       - name: Create GitHub Release
@@ -294,7 +295,7 @@ jobs:
         run: |
           # Using GitHub CLI which is pre-installed in GitHub Actions
           gh release create "${{ needs.prepare-release.outputs.version }}" \
-            --title "Release ${{ needs.prepare-release.outputs.version }}" \
+            --title "${{ needs.prepare-release.outputs.version }}" \
             --notes-file release_notes.md \
             --target ${{ github.sha }}
           
