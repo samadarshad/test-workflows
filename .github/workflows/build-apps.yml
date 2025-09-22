@@ -509,6 +509,13 @@ jobs:
     if: always()
     
     steps:
+      - name: Download all build results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-result-*
+          merge-multiple: true
+          path: build-results/
+      
       - name: Create job summary
         run: |
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
@@ -540,7 +547,35 @@ jobs:
             APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
             for platform in android ios; do
               for env in staging production; do
-                echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | [See details above ↑](#-bitrise-build-summary) | ✅ Triggered |" >> $GITHUB_STEP_SUMMARY
+                BUILD_FILE="build-results/${app}-${platform}-${env}.json"
+                
+                if [ -f "$BUILD_FILE" ]; then
+                  BUILD_DATA=$(cat "$BUILD_FILE")
+                  BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
+                  INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
+                  STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+                  COMPLETED=$(echo "$BUILD_DATA" | jq -r '.completed')
+                  
+                  # Format build number with hyperlink if available
+                  if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+                    BUILD_DISPLAY="[#$BUILD_NUM]($INSTALL_URL)"
+                  else
+                    BUILD_DISPLAY="\`#$BUILD_NUM\`"
+                  fi
+                  
+                  # Format status
+                  case "$STATUS" in
+                    "success") STATUS_DISPLAY="✅ SUCCESS" ;;
+                    "error") STATUS_DISPLAY="❌ FAILED" ;;
+                    "aborted") STATUS_DISPLAY="⚠️ ABORTED" ;;
+                    "timeout") STATUS_DISPLAY="⏱️ TIMEOUT" ;;
+                    *) STATUS_DISPLAY="❓ $STATUS" ;;
+                  esac
+                  
+                  echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | $BUILD_DISPLAY | $STATUS_DISPLAY |" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | _No data_ | ❓ Unknown |" >> $GITHUB_STEP_SUMMARY
+                fi
               done
             done
           done
