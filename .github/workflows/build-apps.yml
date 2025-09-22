@@ -366,10 +366,12 @@ jobs:
               echo "final_public_install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
               echo "build_completed=true" >> $GITHUB_OUTPUT
               
-              # Fail the job if build failed or was aborted
+              # Note build failure but don't exit - let summary steps run
               if [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ]; then
                 echo "❌ Build failed with status: $BUILD_STATUS"
-                exit 1
+                echo "build_failed=true" >> $GITHUB_OUTPUT
+              else
+                echo "build_failed=false" >> $GITHUB_OUTPUT
               fi
               
               break
@@ -486,6 +488,13 @@ jobs:
           name: build-result-${{ matrix.app }}-${{ matrix.platform }}-${{ matrix.environment }}
           path: build-results/
           retention-days: 7
+      
+      - name: Fail job if build failed
+        if: steps.wait-for-completion.outputs.build_failed == 'true'
+        run: |
+          echo "❌ Failing job due to build failure: ${{ steps.wait-for-completion.outputs.final_status }}"
+          echo "🔗 Build details: ${{ steps.trigger-bitrise.outputs.build_url }}"
+          exit 1
   
   update-release:
     needs: [determine-build-parameters, build-apps]
