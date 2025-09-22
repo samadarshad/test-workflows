@@ -219,22 +219,49 @@ jobs:
           echo "========================"
           cat release_notes.md
       
+      - name: Create release branch
+        id: create-branch
+        run: |
+          VERSION="${{ steps.determine-version.outputs.version }}"
+          BRANCH_NAME="release/${VERSION}"
+          
+          echo "📌 Creating release branch: $BRANCH_NAME"
+          
+          # Check if branch already exists
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "⚠️ Branch $BRANCH_NAME already exists"
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            # Create and push the new branch
+            git checkout -b "$BRANCH_NAME"
+            git push origin "$BRANCH_NAME"
+            
+            echo "✅ Branch $BRANCH_NAME created and pushed"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
       - name: Create GitHub Release
         id: create-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          BRANCH_NAME="${{ steps.create-branch.outputs.branch_name }}"
+          
           # Using GitHub CLI which is pre-installed in GitHub Actions
+          # Create release pointing to the release branch
           gh release create "${{ steps.determine-version.outputs.version }}" \
             --title "${{ steps.determine-version.outputs.version }}" \
             --notes-file release_notes.md \
-            --target ${{ github.sha }}
+            --target "$BRANCH_NAME"
           
           # Get the release URL
           RELEASE_URL=$(gh release view "${{ steps.determine-version.outputs.version }}" --json url -q .url)
           echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
           
           echo "✅ Release created: $RELEASE_URL"
+          echo "✅ Release tagged on branch: $BRANCH_NAME"
       
       - name: Create job summary
         run: |
