@@ -83,28 +83,8 @@ jobs:
             fi
           fi
           
-          # Validate that new version is higher than the latest
-          if [ -n "$LATEST_TAG" ]; then
-            # Compare versions
-            LATEST_TAG_FOR_COMPARE=${LATEST_TAG#v}
-            VERSION_FOR_COMPARE=${VERSION#v}
-            
-            # Use sort -V to compare versions
-            HIGHER_VERSION=$(printf '%s\n%s' "$LATEST_TAG_FOR_COMPARE" "$VERSION_FOR_COMPARE" | sort -V | tail -n 1)
-            
-            if [ "$HIGHER_VERSION" != "$VERSION_FOR_COMPARE" ]; then
-              echo "Error: New version $VERSION is not higher than latest tag $LATEST_TAG"
-              exit 1
-            fi
-            
-            if [ "$HIGHER_VERSION" == "$LATEST_TAG_FOR_COMPARE" ] && [ "$VERSION_FOR_COMPARE" == "$LATEST_TAG_FOR_COMPARE" ]; then
-              echo "Error: New version $VERSION is the same as latest tag $LATEST_TAG"
-              exit 1
-            fi
-          fi
-          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "✅ Version validated: $VERSION"
+          echo "✅ Version set: $VERSION"
           
           # Display prominent banner with actual version
           echo ""
