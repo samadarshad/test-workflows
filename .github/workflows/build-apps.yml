@@ -967,28 +967,15 @@ jobs:
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
             
-            # Determine channel
-            CHANNEL_OVERRIDE=""
-            if [ -n "$SLACK_CHANNEL" ]; then
-              CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
-            fi
+            # Create base payload
+            TEXT_FIELD="🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"
             
-            # Create and send payload
-            PAYLOAD=$(cat << EOF
-            {
-              "text": "🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"$CHANNEL_OVERRIDE,
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": $MESSAGE_CONTENT
-                  }
-                }
-              ]
-            }
-            EOF
-            )
+            # Add channel override if specified
+            if [ -n "$SLACK_CHANNEL" ]; then
+              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"channel\":\"$SLACK_CHANNEL\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
+            else
+              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
+            fi
             
             curl -X POST -H 'Content-type: application/json' \
               --data "$PAYLOAD" \
