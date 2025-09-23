@@ -293,7 +293,7 @@ jobs:
           MESSAGE_TEXT="🚀 *Build Workflow Started*
           
           📦 *Release Version:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
-           *Triggered by:* ${{ github.event.sender.name }}
+           *Triggered by:* @${{ github.actor }}
           🕐 *Started at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           📱 *Apps to Build:* ($APP_COUNT apps, $TOTAL_BUILDS total builds)"

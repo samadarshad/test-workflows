@@ -18,12 +18,6 @@ on:
         description: 'Manual version override (e.g., v3.29.0) - only used if version_mode is "manual"'
         required: false
         type: string
-      
-      source_branch:
-        description: 'Branch to create release from (defaults to main)'
-        required: false
-        type: string
-        default: 'main'
 
 jobs:
   create-release:
@@ -38,7 +32,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.source_branch || 'main' }}
           fetch-depth: 0  # Fetch all history for tags
       
       - name: Determine version
@@ -210,7 +203,7 @@ jobs:
         id: create-branch
         run: |
           VERSION="${{ steps.determine-version.outputs.version }}"
-          SOURCE_BRANCH="${{ github.event.inputs.source_branch || 'main' }}"
+          SOURCE_BRANCH="${{ github.ref_name }}"
           BRANCH_NAME="release/${VERSION}"
           
           echo "📌 Creating release branch: $BRANCH_NAME from $SOURCE_BRANCH"
