@@ -1689,3 +1689,63 @@ jobs:
           ---
           *Cancellation processed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
           EOF
+      
+      - name: Send cancellation Slack notification
+        if: always()
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            echo "📤 Sending workflow cancellation notification to Slack..."
+            
+            VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+            APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+            
+            # Calculate total apps for context
+            APP_COUNT=$(echo "$APPS" | jq -r '. | length' 2>/dev/null || echo "unknown")
+            
+            # Create cancellation message
+            MESSAGE_TEXT="🚫 *Build Workflow Cancelled*
+            
+            📦 *Release Version:* $VERSION
+            👤 *Cancelled by:* @${{ github.actor }}
+            🕐 *Cancelled at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            📱 *Apps affected:* $APP_COUNT apps
+            
+            ℹ️ *Status:* Workflow was cancelled - Bitrise builds cleanup attempted
+            🔗 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+            
+            # Escape for JSON
+            MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
+            
+            # Determine channel
+            CHANNEL_OVERRIDE=""
+            if [ -n "$SLACK_CHANNEL" ]; then
+              CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
+            fi
+            
+            # Create and send payload
+            PAYLOAD=$(cat << EOF
+            {
+              "text": "🚫 Build Workflow Cancelled - Release $VERSION"$CHANNEL_OVERRIDE,
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $MESSAGE_CONTENT
+                  }
+                }
+              ]
+            }
+            EOF
+            )
+            
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$PAYLOAD" \
+              "$SLACK_WEBHOOK_URL" && echo "✅ Cancellation notification sent!" || echo "⚠️ Failed to send notification"
+          else
+            echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping cancellation notification"
+          fi
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        continue-on-error: true
