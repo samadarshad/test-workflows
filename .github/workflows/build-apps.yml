@@ -292,8 +292,8 @@ jobs:
           # Create message content
           MESSAGE_TEXT="🚀 *Build Workflow Started*
           
-          📦 *Release Version:* $VERSION
-           *Triggered by:* @${{ github.actor }}
+          📦 *Release Version:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
+           *Triggered by:* ${{ github.event.sender.name }}
           🕐 *Started at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           📱 *Apps to Build:* ($APP_COUNT apps, $TOTAL_BUILDS total builds)"
@@ -1379,8 +1379,8 @@ jobs:
             # Append to message file
             cat >> slack_message.txt << EOF
           ○ *$app*
-            ■ *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
-            ■ *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
+              ■ *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
+              ■ *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
           EOF
           
           done
