@@ -876,8 +876,16 @@ jobs:
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
               INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+              if [ "$STATUS" != "success" ]; then
+                # Build failed - link to Bitrise build with failure indicator
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  STAGING_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                else
+                  STAGING_ANDROID="$BUILD_NUM (failed)"
+                fi
+              elif [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
                 STAGING_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
               else
                 STAGING_ANDROID="$BUILD_NUM"
@@ -888,8 +896,20 @@ jobs:
             if [ -f "build-results/${app}-ios-staging.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-ios-staging.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
-              # iOS builds don't need install URLs
-              STAGING_IOS="$BUILD_NUM"
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
+              
+              if [ "$STATUS" != "success" ]; then
+                # Build failed - link to Bitrise build with failure indicator
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  STAGING_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                else
+                  STAGING_IOS="$BUILD_NUM (failed)"
+                fi
+              else
+                # iOS builds don't need install URLs
+                STAGING_IOS="$BUILD_NUM"
+              fi
             fi
             
             # Check for Android production - with install page links
@@ -898,8 +918,16 @@ jobs:
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
               INSTALL_URL=$(echo "$BUILD_DATA" | jq -r '.install_url // empty')
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
+              if [ "$STATUS" != "success" ]; then
+                # Build failed - link to Bitrise build with failure indicator
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  PROD_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                else
+                  PROD_ANDROID="$BUILD_NUM (failed)"
+                fi
+              elif [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
                 PROD_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
               else
                 PROD_ANDROID="$BUILD_NUM"
@@ -910,8 +938,20 @@ jobs:
             if [ -f "build-results/${app}-ios-production.json" ]; then
               BUILD_DATA=$(cat "build-results/${app}-ios-production.json")
               BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number')
-              # iOS builds don't need install URLs
-              PROD_IOS="$BUILD_NUM"
+              STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
+              BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
+              
+              if [ "$STATUS" != "success" ]; then
+                # Build failed - link to Bitrise build with failure indicator
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  PROD_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                else
+                  PROD_IOS="$BUILD_NUM (failed)"
+                fi
+              else
+                # iOS builds don't need install URLs
+                PROD_IOS="$BUILD_NUM"
+              fi
             fi
             
             # Append to message file
