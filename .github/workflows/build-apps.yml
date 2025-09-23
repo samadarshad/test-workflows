@@ -547,22 +547,52 @@ jobs:
                 ;;
             esac
           else
-            echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Install Page**: _Build did not complete within timeout_" >> $GITHUB_STEP_SUMMARY
-            echo "- **Status**: ⏱️ **TIMEOUT**" >> $GITHUB_STEP_SUMMARY
+            # Build was triggered but didn't complete within timeout or failed during monitoring
+            if [ -n "$BUILD_NUMBER" ]; then
+              echo "- **Build Number**: \`#$BUILD_NUMBER\`" >> $GITHUB_STEP_SUMMARY
+              if [ "$BUILD_COMPLETED" = "false" ]; then
+                echo "- **Install Page**: _Build did not complete within timeout_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ⏱️ **TIMEOUT** - Build taking longer than expected" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- **Install Page**: _Build monitoring failed_" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: ❓ **UNKNOWN** - Check Bitrise for current status" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "- **Build Number**: _Unknown_" >> $GITHUB_STEP_SUMMARY
+              echo "- **Install Page**: _Build status unknown_" >> $GITHUB_STEP_SUMMARY
+              echo "- **Status**: ❓ **UNKNOWN** - Build monitoring may have failed" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # Add Bitrise build link if available
+          if [ -n "${{ steps.trigger-bitrise.outputs.build_url }}" ]; then
+            cat >> $GITHUB_STEP_SUMMARY <<EOF
           - **Bitrise Build**: [View Build Details](${{ steps.trigger-bitrise.outputs.build_url }})
           
           EOF
+          else
+            cat >> $GITHUB_STEP_SUMMARY <<EOF
+          - **Bitrise Build**: _No build URL available_
+          
+          EOF
+          fi
       
       - name: Save build results for Slack notification
+        if: always()
         run: |
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
           FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
           FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
+          
+          # Handle cases where build wasn't triggered or completed
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="N/A"
+            FINAL_STATUS="trigger_failed"
+            BUILD_COMPLETED="false"
+          elif [ -z "$FINAL_STATUS" ]; then
+            FINAL_STATUS="unknown"
+          fi
           
           # Create build result JSON
           BUILD_RESULT=$(cat <<EOF
