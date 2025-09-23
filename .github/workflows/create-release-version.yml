@@ -18,6 +18,12 @@ on:
         description: 'Manual version override (e.g., v3.29.0) - only used if version_mode is "manual"'
         required: false
         type: string
+      
+      source_branch:
+        description: 'Branch to create release from (defaults to main)'
+        required: false
+        type: string
+        default: 'main'
 
 jobs:
   create-release:
@@ -32,6 +38,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.inputs.source_branch || 'main' }}
           fetch-depth: 0  # Fetch all history for tags
       
       - name: Determine version
@@ -223,24 +230,29 @@ jobs:
         id: create-branch
         run: |
           VERSION="${{ steps.determine-version.outputs.version }}"
+          SOURCE_BRANCH="${{ github.event.inputs.source_branch || 'main' }}"
           BRANCH_NAME="release/${VERSION}"
           
-          echo "📌 Creating release branch: $BRANCH_NAME"
+          echo "📌 Creating release branch: $BRANCH_NAME from $SOURCE_BRANCH"
           
           # Check if branch already exists
           if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
             echo "⚠️ Branch $BRANCH_NAME already exists"
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
+            # Ensure we're on the correct source branch
+            git checkout "$SOURCE_BRANCH"
+            
             # Create and push the new branch
             git checkout -b "$BRANCH_NAME"
             git push origin "$BRANCH_NAME"
             
-            echo "✅ Branch $BRANCH_NAME created and pushed"
+            echo "✅ Branch $BRANCH_NAME created and pushed from $SOURCE_BRANCH"
             echo "branch_exists=false" >> $GITHUB_OUTPUT
           fi
           
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "source_branch=$SOURCE_BRANCH" >> $GITHUB_OUTPUT
       
       - name: Create GitHub Release
         id: create-release
@@ -274,7 +286,8 @@ jobs:
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version_mode }} |
-          | **Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
+          | **Source Branch** | \`${{ steps.create-branch.outputs.source_branch }}\` |
+          | **Release Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
           | **Branch Status** | $([ "${{ steps.create-branch.outputs.branch_exists }}" == "true" ] && echo "⚠️ Already existed" || echo "✅ Newly created") |
           | **Tag** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Commit** | \`${{ github.sha }}\` |
