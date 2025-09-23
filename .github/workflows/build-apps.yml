@@ -393,15 +393,10 @@ jobs:
           INSTALL_PAGE_POLL_INTERVAL=15  # Check every 15 seconds
           install_page_elapsed=0
           
-          # Extract version and build number for Release Management API search
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
-          VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')  # Remove 'v' prefix
+          # Extract build number for Release Management API search
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           
-          echo "🔍 Searching Release Management API with:"
-          echo "  Version: $VERSION_CLEAN"
-          echo "  Build Number: $BUILD_NUMBER"
-          echo "  App: ${{ matrix.app }}"
+          echo "🔍 Searching Release Management API with build number: $BUILD_NUMBER"
           
           FINAL_PUBLIC_INSTALL_URL=""
           
@@ -413,9 +408,9 @@ jobs:
             CONNECTED_APP_ID="${{ secrets.BITRISE_CONNECTED_APP_ID }}"
             
             if [ -n "$CONNECTED_APP_ID" ]; then
-              # Search by build number first
+              # Search by build number only
               RELEASE_MGMT_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
-                "https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1&search=${BUILD_NUMBER}&version=${VERSION_CLEAN}")
+                "https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1&search=${BUILD_NUMBER}")
               
               echo "🔍 Release Management API response:"
               echo "$RELEASE_MGMT_RESPONSE" | jq . || echo "Invalid JSON response"
@@ -426,26 +421,9 @@ jobs:
                 echo "Found $ITEM_COUNT installable artifact(s)"
                 
                 if [ "$ITEM_COUNT" -gt 0 ]; then
-                  # Look for matching artifact by workflow name (most precise match)
-                  WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
-                  echo "🎯 Looking for workflow: $WORKFLOW_NAME"
-                  
-                  FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg workflow "$WORKFLOW_NAME" \
-                    '.items[] | select(.workflow == $workflow) | .public_install_page_url // empty' | head -1)
-                  
-                  # If no workflow match, try matching by app name and platform
-                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                    echo "🎯 Looking for app: ${{ matrix.app }}, platform: android"
-                    FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg app "${{ matrix.app }}" \
-                      '.items[] | select(.app_name | test($app; "i")) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                  fi
-                  
-                  # If still no match, try any Android APK from this build
-                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                    echo "🎯 Looking for any Android APK with build number: $BUILD_NUMBER"
-                    FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
-                      '.items[] | select(.build_number == $build_num) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                  fi
+                  # Find the exact artifact matching the build number and platform
+                  FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
+                    '.items[] | select(.build_number == $build_num) | select(.platform == "android") | select(.public_install_page_url != null) | .public_install_page_url' | head -1)
                   
                   # Check if we found a valid URL
                   if [ -n "$FINAL_PUBLIC_INSTALL_URL" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "empty" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "null" ]; then
@@ -453,14 +431,14 @@ jobs:
                     
                     # Show which artifact we matched
                     MATCHED_ARTIFACT=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg url "$FINAL_PUBLIC_INSTALL_URL" \
-                      '.items[] | select(.public_install_page_url == $url) | "\(.app_name) - \(.workflow) - \(.filename)"')
+                      '.items[] | select(.public_install_page_url == $url) | "\(.app_name) - \(.workflow) - \(.filename) - Build #\(.build_number)"')
                     echo "📱 Matched artifact: $MATCHED_ARTIFACT"
                     break
                   else
-                    echo "⚠️ No public install page URL found in Release Management response"
+                    echo "⚠️ No public install page URL found for Android artifact with build number $BUILD_NUMBER"
                   fi
                 else
-                  echo "⚠️ No installable artifacts found for build $BUILD_NUMBER, version $VERSION_CLEAN"
+                  echo "⚠️ No installable artifacts found for build $BUILD_NUMBER"
                 fi
               fi
             else
