@@ -242,60 +242,104 @@ jobs:
           ---
           
           **Next**: Triggering $TOTAL_BUILDS Bitrise builds across all apps, platforms, and environments...
+          
+          ## 🔗 Where to Find Bitrise Links
+          
+          1. **Individual Build Steps**: Each build will show its Bitrise link in its own step summary below
+          2. **Consolidated Links**: Check the "Complete Bitrise Dashboard" job for all links in one place (appears after all builds are triggered)
+          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/dashboard) to see all builds
+          
+          ---
           EOF
   
-  live-builds-tracker:
-    needs: determine-build-parameters
+  bitrise-links-collector:
+    needs: [determine-build-parameters, build-apps]
     runs-on: ubuntu-latest
+    if: always()
     
     steps:
-      - name: 📊 Create Live Builds Dashboard
+      - name: Wait for all builds to be triggered
+        run: |
+          echo "⏳ Waiting for all Bitrise builds to be triggered..."
+          echo "This job will collect all build information once available."
+          sleep 10  # Brief pause to ensure artifacts are uploaded
+      
+      - name: Download all build results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-result-*
+          merge-multiple: true
+          path: build-results/
+      
+      - name: 🔗 Complete Bitrise Dashboard
         run: |
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
-          # Create live builds tracking summary
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 🔴 LIVE: Bitrise Builds Dashboard
+          # � Bitrise Builds - Quick Access Links
           
-          ## 📱 Build Status - $VERSION
+          ## 📱 All Build Links for $VERSION
           
-          > **🔄 Builds are being triggered...** Refresh this page to see live updates with Bitrise links
+          > **� Click any link below to access Bitrise builds directly**
           
-          | App | Platform | Environment | Workflow | Status | Bitrise Link |
-          |-----|----------|-------------|----------|--------|--------------|
+          | App | Platform | Environment | Build # | Status | Bitrise Link |
+          |-----|----------|-------------|---------|--------|--------------|
           EOF
           
-          # Add placeholder rows for all builds
+          # Process build results to show Bitrise links
           echo "$APPS" | jq -r '.[]' | while read app; do
-            APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
             for platform in android ios; do
               for env in staging production; do
-                cat >> $GITHUB_STEP_SUMMARY <<EOF
-          | $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ⏳ Triggering... | _Building..._ |
-          EOF
+                BUILD_FILE="build-results/${app}-${platform}-${env}.json"
+                
+                if [ -f "$BUILD_FILE" ]; then
+                  BUILD_DATA=$(cat "$BUILD_FILE")
+                  BUILD_NUM=$(echo "$BUILD_DATA" | jq -r '.build_number // "N/A"')
+                  STATUS=$(echo "$BUILD_DATA" | jq -r '.status // "unknown"')
+                  BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
+                  
+                  # Format status emoji
+                  case "$STATUS" in
+                    "success") STATUS_DISPLAY="✅ Success" ;;
+                    "error") STATUS_DISPLAY="❌ Failed" ;;
+                    "aborted") STATUS_DISPLAY="⚠️ Aborted" ;;
+                    "timeout") STATUS_DISPLAY="⏱️ Timeout" ;;
+                    *) STATUS_DISPLAY="🔄 $STATUS" ;;
+                  esac
+                  
+                  # Create Bitrise link
+                  if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                    BITRISE_LINK="[🔗 View Build]($BITRISE_URL)"
+                  else
+                    BITRISE_LINK="_No link available_"
+                  fi
+                  
+                  echo "| $app | $platform | $env | #$BUILD_NUM | $STATUS_DISPLAY | $BITRISE_LINK |" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "| $app | $platform | $env | _N/A_ | ❓ Not triggered | _No build_ |" >> $GITHUB_STEP_SUMMARY
+                fi
               done
             done
           done
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           
-          ## 🔗 Quick Access Links
+          ## � Quick Actions
           
-          - [🔄 Refresh this page](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) to see live build updates
-          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - View all your builds
+          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - View all your builds in one place
           - [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION) $([ "${{ needs.determine-build-parameters.outputs.release_exists }}" == "true" ] && echo "" || echo "(⚠️ Not found)")
+          - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
-          ## 📋 Build Information
+          ## 📋 Build Summary
           
           - **Version**: \`$VERSION\`
           - **Triggered by**: @${{ github.actor }}
-          - **Started**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          - **Workflow Run**: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - **Completed**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           ---
           
-          **💡 Tip**: Each individual build will update this dashboard with live Bitrise links as they're triggered. Click any Bitrise link to monitor real-time build progress, logs, and artifacts.
+          **💡 Pro Tip**: Bookmark the Bitrise Dashboard link above to quickly access all your builds across projects!
           EOF
   
   build-apps:
@@ -406,27 +450,32 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
-      - name: 📊 Update live build status
+      - name: � Bitrise Build Started
         run: |
           BUILD_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           
-          # Create/update step summary with live build status
+          # Create step summary with immediate Bitrise access
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           
-          ### 🚀 ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
+          # � ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           
-          | Field | Value |
-          |-------|-------|
-          | **Status** | 🔄 **BUILDING** - Build in progress |
-          | **Build Number** | [#$BUILD_NUMBER]($BUILD_URL) |
-          | **Workflow** | \`${{ steps.build-config.outputs.workflow_name }}\` |
-          | **Branch** | \`${{ steps.build-config.outputs.branch_name }}\` |
-          | **Version** | \`${{ needs.determine-build-parameters.outputs.version }}\` |
-          | **Bitrise Build** | [🔗 View Live Build]($BUILD_URL) |
-          | **Started** | $(date -u +"%H:%M:%S UTC") |
+          ## ✅ Build Triggered Successfully!
           
-          > 📋 **Quick Access**: Click the Bitrise build link above to monitor progress in real-time
+          **🚀 [CLICK HERE TO VIEW BUILD IN BITRISE]($BUILD_URL)**
+          
+          ### Build Details
+          - **Build Number**: #$BUILD_NUMBER  
+          - **Status**: 🔄 Building now...
+          - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
+          - **Version**: \`${{ needs.determine-build-parameters.outputs.version }}\`
+          - **Started**: $(date -u +"%H:%M:%S UTC")
+          
+          ### Quick Actions
+          - [🔗 **Monitor Build Live**]($BUILD_URL) ← **Click to watch progress**
+          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - All builds
+          
+          ---
           
           EOF
       
