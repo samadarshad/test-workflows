@@ -126,8 +126,27 @@ jobs:
             RELEASE_URL=$(gh release view "$VERSION" --json url -q .url)
             echo "Release URL: $RELEASE_URL"
           else
-            echo "⚠️ Warning: Release $VERSION does not exist yet"
+            echo "❌ Error: Release $VERSION does not exist"
             echo "exists=false" >> $GITHUB_OUTPUT
+            
+            echo ""
+            echo "╔════════════════════════════════════════════════════════════════╗"
+            echo "║                        🛑 BUILD STOPPED                        ║"
+            echo "╚════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "📦 Release $VERSION must be created before triggering builds."
+            echo ""
+            echo "👉 Please create the release first using one of these methods:"
+            echo ""
+            echo "🔗 OPTION 1: Use the Create Release Workflow"
+            echo "   https://github.com/${{ github.repository }}/actions/workflows/create-release-version.yml"
+            echo ""
+            echo "🔗 OPTION 2: Create release manually"
+            echo "   https://github.com/${{ github.repository }}/releases/new?tag=$VERSION"
+            echo ""
+            echo "💡 After creating the release, you can re-run this workflow."
+            echo ""
+            exit 1
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -157,7 +176,6 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
           echo "🏷️  RELEASE VERSION: $VERSION"
-          echo "📦 RELEASE STATUS:   $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Exists" || echo "⚠️  Not found")"
           echo "🎯 BUILD STRATEGY:   ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }}"
           echo "📱 APP SELECTION:    ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }}"
           echo "👤 TRIGGERED BY:     @${{ github.actor }}"
@@ -180,11 +198,7 @@ jobs:
           echo "   • Total Builds: $TOTAL_BUILDS"
           echo ""
           echo "🔗 REFERENCE LINKS:"
-          if [ "$RELEASE_EXISTS" == "true" ]; then
-            echo "   • Release: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
-          else
-            echo "   • ⚠️  Release not found - will be created during build process"
-          fi
+          echo "   • Release: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
           echo "   • Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "   • Repository: https://github.com/${{ github.repository }}"
           echo ""
@@ -202,7 +216,6 @@ jobs:
           | Field | Value |
           |-------|-------|
           | **Release Version** | \`$VERSION\` |
-          | **Release Exists** | $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Yes" || echo "⚠️ No") |
           | **Build Strategy** | ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }} |
           | **App Selection** | ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }} |
           | **Triggered By** | @${{ github.actor }} |
@@ -229,11 +242,7 @@ jobs:
           
           EOF
           
-          if [ "$RELEASE_EXISTS" == "true" ]; then
-            echo "- [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ⚠️ Release $VERSION not found (will be created during build)" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "- [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
@@ -267,7 +276,6 @@ jobs:
           
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
-          RELEASE_EXISTS="${{ needs.determine-build-parameters.outputs.release_exists }}"
           
           echo "📤 Sending initial Slack notification for build trigger..."
           
@@ -285,8 +293,7 @@ jobs:
           MESSAGE_TEXT="🚀 *Build Workflow Started*
           
           📦 *Release Version:* $VERSION
-          📋 *Release Status:* $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Exists" || echo "⚠️ Not found")
-          👤 *Triggered by:* @${{ github.actor }}
+           *Triggered by:* @${{ github.actor }}
           🕐 *Started at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           📱 *Apps to Build:* ($APP_COUNT apps, $TOTAL_BUILDS total builds)"
@@ -425,7 +432,7 @@ jobs:
           ## � Quick Actions
           
           - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - View all your builds in one place
-          - [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION) $([ "${{ needs.determine-build-parameters.outputs.release_exists }}" == "true" ] && echo "" || echo "(⚠️ Not found)")
+          - [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ## 📋 Build Summary
@@ -1005,7 +1012,7 @@ jobs:
   update-release:
     needs: [determine-build-parameters, build-apps]
     runs-on: ubuntu-latest
-    if: always() && needs.determine-build-parameters.outputs.release_exists == 'true'
+    if: always()
     permissions:
       contents: write
     
@@ -1090,7 +1097,6 @@ jobs:
         run: |
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
-          RELEASE_EXISTS="${{ needs.determine-build-parameters.outputs.release_exists }}"
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           # 🚀 Bitrise Build Summary
@@ -1102,7 +1108,6 @@ jobs:
           | **Version** | \`$VERSION\` |
           | **Release Branch** | \`release/$VERSION\` |
           | **Version Source** | ${{ github.event.inputs.version_source }} |
-          | **Release Exists** | $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Yes" || echo "⚠️ No") |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
@@ -1210,16 +1215,8 @@ jobs:
           
           ## 🔗 Links
           
+          - [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
           EOF
-          
-          if [ "$RELEASE_EXISTS" == "true" ]; then
-            echo "- [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ⚠️ No release found for version $VERSION" >> $GITHUB_STEP_SUMMARY
-            echo "- [Create Release](https://github.com/${{ github.repository }}/actions/workflows/create-release-version.yml)" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
           
