@@ -1235,7 +1235,7 @@ jobs:
   slack-notification:
     needs: [determine-build-parameters, build-apps]
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && !cancelled()
     
     steps:
       - name: Download all build results
