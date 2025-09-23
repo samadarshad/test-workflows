@@ -450,7 +450,7 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
-      - name: � Bitrise Build Started
+      - name: Bitrise Build Started
         run: |
           BUILD_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
@@ -458,7 +458,7 @@ jobs:
           # Create step summary with immediate Bitrise access
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           
-          # � ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
+          # ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           
           ## ✅ Build Triggered Successfully!
           
