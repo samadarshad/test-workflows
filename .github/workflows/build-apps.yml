@@ -252,6 +252,103 @@ jobs:
           ---
           EOF
   
+  slack-trigger-notification:
+    needs: determine-build-parameters
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Send initial Slack notification
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping Slack notification"
+            exit 0
+          fi
+          
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+          RELEASE_EXISTS="${{ needs.determine-build-parameters.outputs.release_exists }}"
+          
+          echo "📤 Sending initial Slack notification for build trigger..."
+          
+          # Build the apps list for the message
+          APPS_LIST=""
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            APPS_LIST="${APPS_LIST}• $app (Android + iOS, Staging + Production)\n"
+          done
+          
+          # Calculate total builds
+          APP_COUNT=$(echo "$APPS" | jq -r '. | length')
+          TOTAL_BUILDS=$((APP_COUNT * 4))
+          
+          # Create message content
+          MESSAGE_TEXT="🚀 *Build Workflow Started*
+          
+          📦 *Release Version:* $VERSION
+          📋 *Release Status:* $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Exists" || echo "⚠️ Not found")
+          👤 *Triggered by:* @${{ github.actor }}
+          🕐 *Started at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          📱 *Apps to Build:* ($APP_COUNT apps, $TOTAL_BUILDS total builds)"
+          
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            MESSAGE_TEXT="${MESSAGE_TEXT}
+          • $app (Android + iOS, Staging + Production)"
+          done
+          
+          MESSAGE_TEXT="${MESSAGE_TEXT}
+          
+          🔄 *Status:* Starting Bitrise builds...
+          🔗 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+          
+          # Escape for JSON
+          MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
+          
+          # Determine channel (use override if specified, otherwise webhook default)
+          CHANNEL_OVERRIDE=""
+          if [ -n "$SLACK_CHANNEL" ]; then
+            CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
+            echo "🎯 Overriding channel to: $SLACK_CHANNEL"
+          else
+            echo "📍 Using webhook default channel"
+          fi
+          
+          # Create JSON payload
+          PAYLOAD=$(cat << EOF
+          {
+            "text": "🚀 Build Workflow Started - Release $VERSION"$CHANNEL_OVERRIDE,
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": $MESSAGE_CONTENT
+                }
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "Payload preview:"
+          echo "$PAYLOAD" | jq .
+          
+          # Send to Slack
+          RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL")
+          
+          if [ "$RESPONSE" = "ok" ]; then
+            echo "✅ Initial Slack notification sent successfully!"
+          else
+            echo "❌ Failed to send initial Slack notification. Response: $RESPONSE"
+            # Don't fail the workflow for notification issues
+            echo "⚠️ Continuing with build process despite notification failure"
+          fi
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+  
   bitrise-links-collector:
     needs: [determine-build-parameters, build-apps]
     runs-on: ubuntu-latest
@@ -343,7 +440,7 @@ jobs:
           EOF
   
   build-apps:
-    needs: determine-build-parameters
+    needs: [determine-build-parameters, slack-trigger-notification]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -841,6 +938,62 @@ jobs:
           path: build-results/
           retention-days: 7
       
+      - name: Send immediate failure notification
+        if: steps.wait-for-completion.outputs.build_failed == 'true'
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            echo "🚨 Sending immediate failure notification..."
+            
+            VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+            FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
+            BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
+            BITRISE_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
+            
+            # Create brief failure message
+            MESSAGE_TEXT="🚨 *Build Failed*
+            
+            📦 *Release:* $VERSION
+            📱 *App:* ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
+            ❌ *Status:* $FINAL_STATUS (Build #$BUILD_NUMBER)
+            🔗 *Debug:* <$BITRISE_URL|View Bitrise Build>"
+            
+            # Escape for JSON
+            MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
+            
+            # Determine channel
+            CHANNEL_OVERRIDE=""
+            if [ -n "$SLACK_CHANNEL" ]; then
+              CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
+            fi
+            
+            # Create and send payload
+            PAYLOAD=$(cat << EOF
+            {
+              "text": "🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"$CHANNEL_OVERRIDE,
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $MESSAGE_CONTENT
+                  }
+                }
+              ]
+            }
+            EOF
+            )
+            
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$PAYLOAD" \
+              "$SLACK_WEBHOOK_URL" && echo "✅ Failure notification sent!" || echo "⚠️ Failed to send notification"
+          else
+            echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping failure notification"
+          fi
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        continue-on-error: true
+      
       - name: Report build status
         if: steps.wait-for-completion.outputs.build_failed == 'true'
         run: |
@@ -1122,7 +1275,14 @@ jobs:
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" != "success" ]; then
+              if [ "$STATUS" = "aborted" ]; then
+                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  STAGING_ANDROID="<$BITRISE_URL|N/A (aborted)>"
+                else
+                  STAGING_ANDROID="N/A (aborted)"
+                fi
+              elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
                   STAGING_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
@@ -1143,7 +1303,14 @@ jobs:
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" != "success" ]; then
+              if [ "$STATUS" = "aborted" ]; then
+                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  STAGING_IOS="<$BITRISE_URL|N/A (aborted)>"
+                else
+                  STAGING_IOS="N/A (aborted)"
+                fi
+              elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
                   STAGING_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
@@ -1164,7 +1331,14 @@ jobs:
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" != "success" ]; then
+              if [ "$STATUS" = "aborted" ]; then
+                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  PROD_ANDROID="<$BITRISE_URL|N/A (aborted)>"
+                else
+                  PROD_ANDROID="N/A (aborted)"
+                fi
+              elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
                   PROD_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
@@ -1185,7 +1359,14 @@ jobs:
               STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
-              if [ "$STATUS" != "success" ]; then
+              if [ "$STATUS" = "aborted" ]; then
+                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
+                  PROD_IOS="<$BITRISE_URL|N/A (aborted)>"
+                else
+                  PROD_IOS="N/A (aborted)"
+                fi
+              elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
                   PROD_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
@@ -1217,6 +1398,33 @@ jobs:
           echo "Final Slack message:"
           cat slack_message.txt
       
+      - name: 📋 Copy Slack Message to Summary
+        run: |
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          
+          # Add Slack message to GitHub Step Summary for manual copy/paste
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 💬 Slack Message Content
+          
+          > **📋 Copy & Paste Ready:** If Slack notification fails, you can copy the message below and paste it manually
+          
+          ## 🚀 Build Results for Release $VERSION
+          
+          \`\`\`
+          $(cat slack_message.txt)
+          \`\`\`
+          
+          ## 📱 Quick Copy Options
+          
+          **For Slack Desktop/Web:**
+          1. Copy the message content above (between the \`\`\` marks)
+          2. Paste directly into your Slack channel
+          
+          ---
+          
+          **💡 Tip:** The message shows individual build numbers and install links for easy access.
+          EOF
+      
       - name: Send Slack notification
         run: |
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
@@ -1226,8 +1434,14 @@ jobs:
           
           echo "📤 Sending Slack notification..."
           
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          
           # Read the message and escape for JSON
           MESSAGE_CONTENT=$(cat slack_message.txt | jq -Rs .)
+          
+          # Check message size (Slack has a 3000 character limit for blocks)
+          MESSAGE_LENGTH=$(echo "$MESSAGE_CONTENT" | jq -r length)
+          echo "📏 Message length: $MESSAGE_LENGTH characters"
           
           # Determine channel (use override if specified, otherwise webhook default)
           CHANNEL_OVERRIDE=""
@@ -1238,10 +1452,32 @@ jobs:
             echo "📍 Using webhook default channel"
           fi
           
-          # Create JSON payload with optional channel override
+          # If message is too long (over 2800 chars to leave buffer), send summary with link
+          if [ "$MESSAGE_LENGTH" -gt 2800 ]; then
+            echo "⚠️ Message too long ($MESSAGE_LENGTH chars) - sending summary with workflow link"
+            
+            # Count builds
+            SUCCESS_COUNT=$(grep -c '"status":"success"' build-results/*.json 2>/dev/null || echo "0")
+            TOTAL_COUNT=$(find build-results -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+            FAILED_COUNT=$((TOTAL_COUNT - SUCCESS_COUNT))
+            
+            # Create short summary message
+            SUMMARY_MESSAGE="🚀 *Build Results for Release $VERSION*
+            
+            📊 *Summary:* $SUCCESS_COUNT successful, $FAILED_COUNT failed (out of $TOTAL_COUNT total builds)
+            👤 *Triggered by:* @${{ github.actor }}
+            
+            📋 *Full Details:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Complete Build Summary>
+            
+            💡 *Note:* Full build details with install links are available in the workflow summary above."
+            
+            MESSAGE_CONTENT=$(echo "$SUMMARY_MESSAGE" | jq -Rs .)
+          fi
+          
+          # Create JSON payload
           PAYLOAD=$(cat << EOF
           {
-            "text": "🚀 Build Results for Release ${{ needs.determine-build-parameters.outputs.version }}"$CHANNEL_OVERRIDE,
+            "text": "🚀 Build Results for Release $VERSION"$CHANNEL_OVERRIDE,
             "blocks": [
               {
                 "type": "section",
@@ -1255,7 +1491,7 @@ jobs:
           EOF
           )
           
-          echo "Payload preview:"
+          echo "Final payload preview:"
           echo "$PAYLOAD" | jq .
           
           # Send to Slack
@@ -1264,10 +1500,50 @@ jobs:
             "$SLACK_WEBHOOK_URL")
           
           if [ "$RESPONSE" = "ok" ]; then
-            echo "✅ Slack notification sent successfully!"
+            if [ "$MESSAGE_LENGTH" -gt 2800 ]; then
+              echo "✅ Summary Slack notification sent successfully (full details in workflow link)!"
+            else
+              echo "✅ Detailed Slack notification sent successfully!"
+            fi
           else
             echo "❌ Failed to send Slack notification. Response: $RESPONSE"
-            exit 1
+            
+            # If it still fails, try sending just a basic link message
+            echo "🔄 Attempting fallback message..."
+            FALLBACK_MESSAGE="🚀 *Build Results for Release $VERSION*
+            
+            📋 *View Results:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build Summary>
+            👤 *Triggered by:* @${{ github.actor }}"
+            
+            FALLBACK_CONTENT=$(echo "$FALLBACK_MESSAGE" | jq -Rs .)
+            FALLBACK_PAYLOAD=$(cat << EOF
+            {
+              "text": "🚀 Build Results for Release $VERSION"$CHANNEL_OVERRIDE,
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $FALLBACK_CONTENT
+                  }
+                }
+              ]
+            }
+            EOF
+            )
+            
+            FALLBACK_RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
+              --data "$FALLBACK_PAYLOAD" \
+              "$SLACK_WEBHOOK_URL")
+            
+            if [ "$FALLBACK_RESPONSE" = "ok" ]; then
+              echo "✅ Fallback Slack notification sent successfully!"
+            else
+              echo "❌ Both main and fallback Slack notifications failed."
+              echo "Main response: $RESPONSE"
+              echo "Fallback response: $FALLBACK_RESPONSE"
+              exit 1
+            fi
           fi
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
