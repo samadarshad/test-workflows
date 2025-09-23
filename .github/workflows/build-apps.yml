@@ -1034,7 +1034,7 @@ jobs:
           # Add footer
           cat >> slack_message.txt << EOF
           
-          :rocket: *Release:* $VERSION
+          :rocket: *Release:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
           :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>
           EOF
           
