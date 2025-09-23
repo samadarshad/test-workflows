@@ -1088,6 +1088,7 @@ jobs:
             CANCEL_RESPONSE=$(curl -s -X POST -w "HTTPSTATUS:%{http_code}" \
               -H "Authorization: token ${BITRISE_ACCESS_TOKEN}" \
               -H "Content-Type: application/json" \
+              -d '{"abort_reason": "GitHub Actions workflow was cancelled"}' \
               "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds/${BUILD_SLUG}/abort")
             
             # Extract HTTP status and response
