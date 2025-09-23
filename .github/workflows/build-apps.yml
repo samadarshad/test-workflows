@@ -148,7 +148,6 @@ jobs:
   build-apps:
     needs: determine-build-parameters
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -603,7 +602,8 @@ jobs:
         run: |
           echo "❌ Build failed with status: ${{ steps.wait-for-completion.outputs.final_status }}"
           echo "🔗 Build details: ${{ steps.trigger-bitrise.outputs.build_url }}"
-          echo "⚠️ Continuing workflow to allow other builds to complete and generate summary"
+          echo "💡 This job will fail so you can use 'Re-run failed jobs' to retry just the failed builds"
+          exit 1
   
   update-release:
     needs: [determine-build-parameters, build-apps]
