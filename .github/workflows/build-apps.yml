@@ -1647,6 +1647,7 @@ jobs:
       - name: Create cancellation summary
         if: always()
         run: |
+          CURRENT_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           # 🚫 Workflow Cancelled - Bitrise Build Cleanup
           
@@ -1654,7 +1655,7 @@ jobs:
           
           | Field | Value |
           |-------|-------|
-          | **Cancelled At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          | **Cancelled At** | $CURRENT_TIME |
           | **Version** | \`${{ needs.determine-build-parameters.outputs.version }}\` |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
@@ -1674,7 +1675,7 @@ jobs:
           - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
           
           ---
-          *Cancellation processed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          *Cancellation processed at $CURRENT_TIME*
           EOF
       
       - name: Send cancellation Slack notification
