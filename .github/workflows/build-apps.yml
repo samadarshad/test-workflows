@@ -244,6 +244,60 @@ jobs:
           **Next**: Triggering $TOTAL_BUILDS Bitrise builds across all apps, platforms, and environments...
           EOF
   
+  live-builds-tracker:
+    needs: determine-build-parameters
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📊 Create Live Builds Dashboard
+        run: |
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+          
+          # Create live builds tracking summary
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🔴 LIVE: Bitrise Builds Dashboard
+          
+          ## 📱 Build Status - $VERSION
+          
+          > **🔄 Builds are being triggered...** Refresh this page to see live updates with Bitrise links
+          
+          | App | Platform | Environment | Workflow | Status | Bitrise Link |
+          |-----|----------|-------------|----------|--------|--------------|
+          EOF
+          
+          # Add placeholder rows for all builds
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
+            for platform in android ios; do
+              for env in staging production; do
+                cat >> $GITHUB_STEP_SUMMARY <<EOF
+          | $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | ⏳ Triggering... | _Building..._ |
+          EOF
+              done
+            done
+          done
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          
+          ## 🔗 Quick Access Links
+          
+          - [🔄 Refresh this page](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) to see live build updates
+          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - View all your builds
+          - [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION) $([ "${{ needs.determine-build-parameters.outputs.release_exists }}" == "true" ] && echo "" || echo "(⚠️ Not found)")
+          
+          ## 📋 Build Information
+          
+          - **Version**: \`$VERSION\`
+          - **Triggered by**: @${{ github.actor }}
+          - **Started**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Workflow Run**: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ---
+          
+          **💡 Tip**: Each individual build will update this dashboard with live Bitrise links as they're triggered. Click any Bitrise link to monitor real-time build progress, logs, and artifacts.
+          EOF
+  
   build-apps:
     needs: determine-build-parameters
     runs-on: ubuntu-latest
@@ -351,6 +405,30 @@ jobs:
           echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
+      
+      - name: 📊 Update live build status
+        run: |
+          BUILD_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
+          BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
+          
+          # Create/update step summary with live build status
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          
+          ### 🚀 ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
+          
+          | Field | Value |
+          |-------|-------|
+          | **Status** | 🔄 **BUILDING** - Build in progress |
+          | **Build Number** | [#$BUILD_NUMBER]($BUILD_URL) |
+          | **Workflow** | \`${{ steps.build-config.outputs.workflow_name }}\` |
+          | **Branch** | \`${{ steps.build-config.outputs.branch_name }}\` |
+          | **Version** | \`${{ needs.determine-build-parameters.outputs.version }}\` |
+          | **Bitrise Build** | [🔗 View Live Build]($BUILD_URL) |
+          | **Started** | $(date -u +"%H:%M:%S UTC") |
+          
+          > 📋 **Quick Access**: Click the Bitrise build link above to monitor progress in real-time
+          
+          EOF
       
       - name: Save build slug for cancellation
         run: |
