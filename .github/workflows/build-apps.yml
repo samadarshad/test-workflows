@@ -485,6 +485,7 @@ jobs:
           echo "install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
       
       - name: Create build summary entry
+        if: always()
         run: |
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
