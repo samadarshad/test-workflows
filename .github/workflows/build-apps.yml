@@ -1024,9 +1024,9 @@ jobs:
             
             # Append to message file
             cat >> slack_message.txt << EOF
-          • *$app*
-            ▸ *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
-            ▸ *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
+          ○ *$app*
+            ■ *Staging:* :android: $STAGING_ANDROID  :appleinc: $STAGING_IOS
+            ■ *Production:* :android: $PROD_ANDROID  :appleinc: $PROD_IOS
           EOF
           
           done
