@@ -356,111 +356,7 @@ jobs:
                 echo "$STATUS_RESPONSE" | jq .data
               fi
               
-              # Extract final build details including public install page (Android only)
-              FINAL_PUBLIC_INSTALL_URL=""
-              
-              if [ "${{ matrix.platform }}" = "android" ] && [ "$BUILD_STATUS" = "success" ]; then
-                echo "🤖 Android build successful - using Release Management API to get public install page URL..."
-                
-                # Poll for install page URL using Release Management API
-                INSTALL_PAGE_WAIT_TIME=180  # 3 minutes max wait for install page
-                INSTALL_PAGE_POLL_INTERVAL=15  # Check every 15 seconds
-                install_page_elapsed=0
-                
-                # Extract version and build number for Release Management API search
-                VERSION="${{ needs.determine-build-parameters.outputs.version }}"
-                VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')  # Remove 'v' prefix
-                BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
-                
-                echo "🔍 Searching Release Management API with:"
-                echo "  Version: $VERSION_CLEAN"
-                echo "  Build Number: $BUILD_NUMBER"
-                echo "  App: ${{ matrix.app }}"
-                
-                while [ $install_page_elapsed -lt $INSTALL_PAGE_WAIT_TIME ]; do
-                  echo "🔍 Checking Release Management API for install page URL (elapsed: ${install_page_elapsed}s)..."
-                  
-                  # Use Release Management API to find installable artifacts
-                  # Note: BITRISE_CONNECTED_APP_ID should be set as a secret for the connected app ID
-                  CONNECTED_APP_ID="${{ secrets.BITRISE_CONNECTED_APP_ID }}"
-                  
-                  if [ -n "$CONNECTED_APP_ID" ]; then
-                    # Search by build number first
-                    RELEASE_MGMT_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
-                      "https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1&search=${BUILD_NUMBER}&version=${VERSION_CLEAN}")
-                    
-                    echo "🔍 Release Management API response:"
-                    echo "$RELEASE_MGMT_RESPONSE" | jq . || echo "Invalid JSON response"
-                    
-                    if echo "$RELEASE_MGMT_RESPONSE" | jq empty 2>/dev/null; then
-                      # Check if we got any items
-                      ITEM_COUNT=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r '.count // 0')
-                      echo "Found $ITEM_COUNT installable artifact(s)"
-                      
-                      if [ "$ITEM_COUNT" -gt 0 ]; then
-                        # Look for matching artifact by workflow name (most precise match)
-                        WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
-                        echo "🎯 Looking for workflow: $WORKFLOW_NAME"
-                        
-                        FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg workflow "$WORKFLOW_NAME" \
-                          '.items[] | select(.workflow == $workflow) | .public_install_page_url // empty' | head -1)
-                        
-                        # If no workflow match, try matching by app name and platform
-                        if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                          echo "🎯 Looking for app: ${{ matrix.app }}, platform: android"
-                          FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg app "${{ matrix.app }}" \
-                            '.items[] | select(.app_name | test($app; "i")) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                        fi
-                        
-                        # If still no match, try any Android APK from this build
-                        if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
-                          echo "🎯 Looking for any Android APK with build number: $BUILD_NUMBER"
-                          FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
-                            '.items[] | select(.build_number == $build_num) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                        fi
-                        
-                        # Check if we found a valid URL
-                        if [ -n "$FINAL_PUBLIC_INSTALL_URL" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "empty" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "null" ]; then
-                          echo "✅ Found install page URL from Release Management API: $FINAL_PUBLIC_INSTALL_URL"
-                          
-                          # Show which artifact we matched
-                          MATCHED_ARTIFACT=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg url "$FINAL_PUBLIC_INSTALL_URL" \
-                            '.items[] | select(.public_install_page_url == $url) | "\(.app_name) - \(.workflow) - \(.filename)"')
-                          echo "📱 Matched artifact: $MATCHED_ARTIFACT"
-                          break
-                        else
-                          echo "⚠️ No public install page URL found in Release Management response"
-                        fi
-                      else
-                        echo "⚠️ No installable artifacts found for build $BUILD_NUMBER, version $VERSION_CLEAN"
-                      fi
-                    fi
-                  else
-                    echo "⚠️ BITRISE_CONNECTED_APP_ID not set - Release Management API unavailable"
-                    echo "💡 Please set BITRISE_CONNECTED_APP_ID secret to use Release Management API"
-                  fi
-                  
-                  echo "⏳ Install page URL not ready yet, waiting ${INSTALL_PAGE_POLL_INTERVAL}s..."
-                  sleep $INSTALL_PAGE_POLL_INTERVAL
-                  install_page_elapsed=$((install_page_elapsed + INSTALL_PAGE_POLL_INTERVAL))
-                done
-                
-                # Check if we timed out waiting for install page
-                if [ $install_page_elapsed -ge $INSTALL_PAGE_WAIT_TIME ] && ([ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]); then
-                  echo "⚠️ Timed out waiting for install page URL after ${INSTALL_PAGE_WAIT_TIME}s"
-                  echo "🎯 Note: Install page may still become available later - check Bitrise dashboard"
-                  echo "💡 Tip: Ensure BITRISE_CONNECTED_APP_ID secret is set for Release Management API access"
-                  FINAL_PUBLIC_INSTALL_URL=""
-                fi
-              elif [ "${{ matrix.platform }}" = "android" ]; then
-                echo "🤖 Android build did not succeed ($BUILD_STATUS) - skipping install page check"
-              else
-                echo "🍎 iOS build - public install page not needed (using TestFlight/App Store)"
-              fi
-              
-              echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
               echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
-              echo "final_public_install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
               echo "build_completed=true" >> $GITHUB_OUTPUT
               
               # Note build failure but don't exit - let summary steps run
@@ -486,12 +382,114 @@ jobs:
             echo "build_completed=false" >> $GITHUB_OUTPUT
           fi
       
+      - name: Get public install page URL
+        id: get-install-url
+        if: matrix.platform == 'android' && steps.wait-for-completion.outputs.build_completed == 'true' && steps.wait-for-completion.outputs.final_status == 'success'
+        run: |
+          echo "🤖 Android build successful - using Release Management API to get public install page URL..."
+          
+          # Poll for install page URL using Release Management API
+          INSTALL_PAGE_WAIT_TIME=180  # 3 minutes max wait for install page
+          INSTALL_PAGE_POLL_INTERVAL=15  # Check every 15 seconds
+          install_page_elapsed=0
+          
+          # Extract version and build number for Release Management API search
+          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')  # Remove 'v' prefix
+          BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
+          
+          echo "🔍 Searching Release Management API with:"
+          echo "  Version: $VERSION_CLEAN"
+          echo "  Build Number: $BUILD_NUMBER"
+          echo "  App: ${{ matrix.app }}"
+          
+          FINAL_PUBLIC_INSTALL_URL=""
+          
+          while [ $install_page_elapsed -lt $INSTALL_PAGE_WAIT_TIME ]; do
+            echo "🔍 Checking Release Management API for install page URL (elapsed: ${install_page_elapsed}s)..."
+            
+            # Use Release Management API to find installable artifacts
+            # Note: BITRISE_CONNECTED_APP_ID should be set as a secret for the connected app ID
+            CONNECTED_APP_ID="${{ secrets.BITRISE_CONNECTED_APP_ID }}"
+            
+            if [ -n "$CONNECTED_APP_ID" ]; then
+              # Search by build number first
+              RELEASE_MGMT_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
+                "https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1&search=${BUILD_NUMBER}&version=${VERSION_CLEAN}")
+              
+              echo "🔍 Release Management API response:"
+              echo "$RELEASE_MGMT_RESPONSE" | jq . || echo "Invalid JSON response"
+              
+              if echo "$RELEASE_MGMT_RESPONSE" | jq empty 2>/dev/null; then
+                # Check if we got any items
+                ITEM_COUNT=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r '.count // 0')
+                echo "Found $ITEM_COUNT installable artifact(s)"
+                
+                if [ "$ITEM_COUNT" -gt 0 ]; then
+                  # Look for matching artifact by workflow name (most precise match)
+                  WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
+                  echo "🎯 Looking for workflow: $WORKFLOW_NAME"
+                  
+                  FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg workflow "$WORKFLOW_NAME" \
+                    '.items[] | select(.workflow == $workflow) | .public_install_page_url // empty' | head -1)
+                  
+                  # If no workflow match, try matching by app name and platform
+                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                    echo "🎯 Looking for app: ${{ matrix.app }}, platform: android"
+                    FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg app "${{ matrix.app }}" \
+                      '.items[] | select(.app_name | test($app; "i")) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
+                  fi
+                  
+                  # If still no match, try any Android APK from this build
+                  if [ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]; then
+                    echo "🎯 Looking for any Android APK with build number: $BUILD_NUMBER"
+                    FINAL_PUBLIC_INSTALL_URL=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
+                      '.items[] | select(.build_number == $build_num) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
+                  fi
+                  
+                  # Check if we found a valid URL
+                  if [ -n "$FINAL_PUBLIC_INSTALL_URL" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "empty" ] && [ "$FINAL_PUBLIC_INSTALL_URL" != "null" ]; then
+                    echo "✅ Found install page URL from Release Management API: $FINAL_PUBLIC_INSTALL_URL"
+                    
+                    # Show which artifact we matched
+                    MATCHED_ARTIFACT=$(echo "$RELEASE_MGMT_RESPONSE" | jq -r --arg url "$FINAL_PUBLIC_INSTALL_URL" \
+                      '.items[] | select(.public_install_page_url == $url) | "\(.app_name) - \(.workflow) - \(.filename)"')
+                    echo "📱 Matched artifact: $MATCHED_ARTIFACT"
+                    break
+                  else
+                    echo "⚠️ No public install page URL found in Release Management response"
+                  fi
+                else
+                  echo "⚠️ No installable artifacts found for build $BUILD_NUMBER, version $VERSION_CLEAN"
+                fi
+              fi
+            else
+              echo "⚠️ BITRISE_CONNECTED_APP_ID not set - Release Management API unavailable"
+              echo "💡 Please set BITRISE_CONNECTED_APP_ID secret to use Release Management API"
+            fi
+            
+            echo "⏳ Install page URL not ready yet, waiting ${INSTALL_PAGE_POLL_INTERVAL}s..."
+            sleep $INSTALL_PAGE_POLL_INTERVAL
+            install_page_elapsed=$((install_page_elapsed + INSTALL_PAGE_POLL_INTERVAL))
+          done
+          
+          # Check if we timed out waiting for install page
+          if [ $install_page_elapsed -ge $INSTALL_PAGE_WAIT_TIME ] && ([ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]); then
+            echo "⚠️ Timed out waiting for install page URL after ${INSTALL_PAGE_WAIT_TIME}s"
+            echo "🎯 Note: Install page may still become available later - check Bitrise dashboard"
+            echo "💡 Tip: Ensure BITRISE_CONNECTED_APP_ID secret is set for Release Management API access"
+            FINAL_PUBLIC_INSTALL_URL=""
+          fi
+          
+          echo "Final Public Install Page: $FINAL_PUBLIC_INSTALL_URL"
+          echo "install_url=$FINAL_PUBLIC_INSTALL_URL" >> $GITHUB_OUTPUT
+      
       - name: Create build summary entry
         run: |
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
           FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
-          FINAL_INSTALL_URL="${{ steps.wait-for-completion.outputs.final_public_install_url }}"
+          FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
