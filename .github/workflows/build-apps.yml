@@ -450,35 +450,6 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "public_install_page_url=$PUBLIC_INSTALL_PAGE_URL" >> $GITHUB_OUTPUT
       
-      - name: Bitrise Build Started
-        run: |
-          BUILD_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
-          BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
-          
-          # Create step summary with immediate Bitrise access
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
-          
-          # ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
-          
-          ## ✅ Build Triggered Successfully!
-          
-          **🚀 [CLICK HERE TO VIEW BUILD IN BITRISE]($BUILD_URL)**
-          
-          ### Build Details
-          - **Build Number**: #$BUILD_NUMBER  
-          - **Status**: 🔄 Building now...
-          - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
-          - **Version**: \`${{ needs.determine-build-parameters.outputs.version }}\`
-          - **Started**: $(date -u +"%H:%M:%S UTC")
-          
-          ### Quick Actions
-          - [🔗 **Monitor Build Live**]($BUILD_URL) ← **Click to watch progress**
-          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - All builds
-          
-          ---
-          
-          EOF
-      
       - name: Save build slug for cancellation
         run: |
           BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
