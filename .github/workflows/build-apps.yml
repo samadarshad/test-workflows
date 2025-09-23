@@ -509,7 +509,7 @@ jobs:
               fi
             else
               echo "⚠️ Connected app ID not available - Release Management API unavailable"
-              echo "💡 Set BITRISE_CONNECTED_APP_ID_${{ matrix.app | tr '.' '_' | tr '[:lower:]' '[:upper:]' }} repository variable"
+              echo "💡 Set BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME} repository variable"
             fi
             
             echo "⏳ Install page URL not ready yet, waiting ${INSTALL_PAGE_POLL_INTERVAL}s..."
