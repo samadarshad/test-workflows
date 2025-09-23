@@ -5,7 +5,6 @@
 # Required Secrets:
 # - BITRISE_PROJECT_SLUG: Bitrise project identifier
 # - BITRISE_ACCESS_TOKEN: Bitrise API access token
-# - BITRISE_CONNECTED_APP_ID: Default connected app ID for Release Management API (fallback)
 # - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
 #
 # Required Repository Variables (for app-specific connected app IDs):
@@ -17,7 +16,7 @@
 # - BITRISE_CONNECTED_APP_ID_ANWB: Connected app ID for ANWB Android builds
 #
 # Set these at: Settings > Secrets and variables > Actions > Variables tab
-# If app-specific variables are not set, falls back to BITRISE_CONNECTED_APP_ID secret
+# Each app requires its own specific connected app ID variable
 
 name: Build Apps
 
