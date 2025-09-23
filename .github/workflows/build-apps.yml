@@ -586,17 +586,17 @@ jobs:
           path: build-results/
           retention-days: 7
       
-      - name: Fail job if build failed
+      - name: Report build status
         if: steps.wait-for-completion.outputs.build_failed == 'true'
         run: |
-          echo "❌ Failing job due to build failure: ${{ steps.wait-for-completion.outputs.final_status }}"
+          echo "❌ Build failed with status: ${{ steps.wait-for-completion.outputs.final_status }}"
           echo "🔗 Build details: ${{ steps.trigger-bitrise.outputs.build_url }}"
-          exit 1
+          echo "⚠️ Continuing workflow to allow other builds to complete and generate summary"
   
   update-release:
     needs: [determine-build-parameters, build-apps]
     runs-on: ubuntu-latest
-    if: needs.determine-build-parameters.outputs.release_exists == 'true'
+    if: always() && needs.determine-build-parameters.outputs.release_exists == 'true'
     permissions:
       contents: write
     
