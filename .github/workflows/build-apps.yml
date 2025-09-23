@@ -741,17 +741,63 @@ jobs:
             done
           done
           
-          # Calculate total builds
+          # Calculate total builds and overall status
           TOTAL_APPS=$(echo "$APPS" | jq -r '. | length')
           TOTAL_BUILDS=$((TOTAL_APPS * 4))
+          
+          # Count build results by status
+          SUCCESS_COUNT=0
+          FAILED_COUNT=0
+          ABORTED_COUNT=0
+          TIMEOUT_COUNT=0
+          UNKNOWN_COUNT=0
+          
+          for app in $(echo "$APPS" | jq -r '.[]'); do
+            for platform in android ios; do
+              for env in staging production; do
+                BUILD_FILE="build-results/${app}-${platform}-${env}.json"
+                if [ -f "$BUILD_FILE" ]; then
+                  STATUS=$(cat "$BUILD_FILE" | jq -r '.status')
+                  case "$STATUS" in
+                    "success") SUCCESS_COUNT=$((SUCCESS_COUNT + 1)) ;;
+                    "error") FAILED_COUNT=$((FAILED_COUNT + 1)) ;;
+                    "aborted") ABORTED_COUNT=$((ABORTED_COUNT + 1)) ;;
+                    "timeout") TIMEOUT_COUNT=$((TIMEOUT_COUNT + 1)) ;;
+                    *) UNKNOWN_COUNT=$((UNKNOWN_COUNT + 1)) ;;
+                  esac
+                else
+                  UNKNOWN_COUNT=$((UNKNOWN_COUNT + 1))
+                fi
+              done
+            done
+          done
+          
+          # Determine overall workflow status
+          if [ $FAILED_COUNT -gt 0 ] || [ $ABORTED_COUNT -gt 0 ] || [ $TIMEOUT_COUNT -gt 0 ]; then
+            if [ $SUCCESS_COUNT -gt 0 ]; then
+              OVERALL_STATUS="⚠️ **PARTIAL SUCCESS** - Some builds failed but workflow continued"
+            else
+              OVERALL_STATUS="❌ **FAILED** - All builds failed"
+            fi
+          elif [ $SUCCESS_COUNT -eq $TOTAL_BUILDS ]; then
+            OVERALL_STATUS="✅ **SUCCESS** - All builds completed successfully"
+          else
+            OVERALL_STATUS="🔄 **IN PROGRESS** - Some builds still processing"
+          fi
           
           cat >> $GITHUB_STEP_SUMMARY <<EOF
           
           ## 📊 Summary
           
+          - **Overall Status**: $OVERALL_STATUS
           - **Total Apps**: $TOTAL_APPS
           - **Builds per App**: 4 (2 platforms × 2 environments)
           - **Total Builds Triggered**: $TOTAL_BUILDS
+          - **Successful**: $SUCCESS_COUNT
+          - **Failed**: $FAILED_COUNT
+          - **Aborted**: $ABORTED_COUNT
+          - **Timeout**: $TIMEOUT_COUNT
+          - **Unknown/Pending**: $UNKNOWN_COUNT
           
           ## 🔗 Links
           
