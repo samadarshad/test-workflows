@@ -1,3 +1,24 @@
+# Build Apps Workflow
+# 
+# This workflow builds mobile apps using Bitrise for multiple apps, platforms, and environments.
+# 
+# Required Secrets:
+# - BITRISE_PROJECT_SLUG: Bitrise project identifier
+# - BITRISE_ACCESS_TOKEN: Bitrise API access token
+# - BITRISE_CONNECTED_APP_ID: Default connected app ID for Release Management API (fallback)
+# - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
+#
+# Required Repository Variables (for app-specific connected app IDs):
+# - BITRISE_CONNECTED_APP_ID_EV_ENERGY: Connected app ID for ev.energy Android builds
+# - BITRISE_CONNECTED_APP_ID_NGMA: Connected app ID for NGMA Android builds
+# - BITRISE_CONNECTED_APP_ID_NGNY: Connected app ID for NGNY Android builds
+# - BITRISE_CONNECTED_APP_ID_SVCE: Connected app ID for SVCE Android builds
+# - BITRISE_CONNECTED_APP_ID_MCE: Connected app ID for MCE Android builds
+# - BITRISE_CONNECTED_APP_ID_ANWB: Connected app ID for ANWB Android builds
+#
+# Set these at: Settings > Secrets and variables > Actions > Variables tab
+# If app-specific variables are not set, falls back to BITRISE_CONNECTED_APP_ID secret
+
 name: Build Apps
 
 run-name: "Build Apps: ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || github.event.inputs.manual_version }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
@@ -381,6 +402,53 @@ jobs:
             echo "build_completed=false" >> $GITHUB_OUTPUT
           fi
       
+      - name: Resolve connected app ID for Android
+        id: resolve-connected-app-id
+        if: matrix.platform == 'android'
+        run: |
+          APP_NAME="${{ matrix.app }}"
+          
+          # Convert app name to a valid variable name format (uppercase, replace dots with underscores)
+          APP_VAR_NAME=$(echo "$APP_NAME" | tr '[:lower:]' '[:upper:]' | tr '.' '_')
+          
+          echo "🔍 Resolving connected app ID for app: $APP_NAME"
+          echo "Looking for variable: BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME}"
+          
+          # Get app-specific connected app ID from variables
+          case "$APP_VAR_NAME" in
+            "EV_ENERGY")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_EV_ENERGY }}"
+              ;;
+            "NGMA")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_NGMA }}"
+              ;;
+            "NGNY")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_NGNY }}"
+              ;;
+            "SVCE")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_SVCE }}"
+              ;;
+            "MCE")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_MCE }}"
+              ;;
+            "ANWB")
+              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_ANWB }}"
+              ;;
+            *)
+              echo "⚠️ Unknown app: $APP_NAME - no connected app ID configured"
+              CONNECTED_APP_ID=""
+              ;;
+          esac
+          
+          if [ -n "$CONNECTED_APP_ID" ]; then
+            echo "✅ Using connected app ID: ${CONNECTED_APP_ID:0:8}... (for $APP_NAME)"
+            echo "connected_app_id=$CONNECTED_APP_ID" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No connected app ID found for $APP_NAME"
+            echo "💡 Set BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME} repository variable"
+            echo "connected_app_id=" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Get public install page URL
         id: get-install-url
         if: matrix.platform == 'android' && steps.wait-for-completion.outputs.build_completed == 'true' && steps.wait-for-completion.outputs.final_status == 'success'
@@ -403,8 +471,8 @@ jobs:
             echo "🔍 Checking Release Management API for install page URL (elapsed: ${install_page_elapsed}s)..."
             
             # Use Release Management API to find installable artifacts
-            # Note: BITRISE_CONNECTED_APP_ID should be set as a secret for the connected app ID
-            CONNECTED_APP_ID="${{ secrets.BITRISE_CONNECTED_APP_ID }}"
+            # Use the app-specific connected app ID resolved earlier
+            CONNECTED_APP_ID="${{ steps.resolve-connected-app-id.outputs.connected_app_id }}"
             
             if [ -n "$CONNECTED_APP_ID" ]; then
               # Search by build number only
@@ -441,8 +509,8 @@ jobs:
                 fi
               fi
             else
-              echo "⚠️ BITRISE_CONNECTED_APP_ID not set - Release Management API unavailable"
-              echo "💡 Please set BITRISE_CONNECTED_APP_ID secret to use Release Management API"
+              echo "⚠️ Connected app ID not available - Release Management API unavailable"
+              echo "💡 Set BITRISE_CONNECTED_APP_ID_${{ matrix.app | tr '.' '_' | tr '[:lower:]' '[:upper:]' }} repository variable"
             fi
             
             echo "⏳ Install page URL not ready yet, waiting ${INSTALL_PAGE_POLL_INTERVAL}s..."
@@ -454,7 +522,7 @@ jobs:
           if [ $install_page_elapsed -ge $INSTALL_PAGE_WAIT_TIME ] && ([ -z "$FINAL_PUBLIC_INSTALL_URL" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "empty" ] || [ "$FINAL_PUBLIC_INSTALL_URL" = "null" ]); then
             echo "⚠️ Timed out waiting for install page URL after ${INSTALL_PAGE_WAIT_TIME}s"
             echo "🎯 Note: Install page may still become available later - check Bitrise dashboard"
-            echo "💡 Tip: Ensure BITRISE_CONNECTED_APP_ID secret is set for Release Management API access"
+            echo "💡 Tip: Ensure correct connected app ID is configured for ${{ matrix.app }}"
             FINAL_PUBLIC_INSTALL_URL=""
           fi
           
