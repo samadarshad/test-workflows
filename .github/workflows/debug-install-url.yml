@@ -79,18 +79,14 @@ jobs:
             echo "   Search: $search_param"
             echo "   Version: $version_param"
             
-            # Build API URL
-            API_URL="https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1"
-            
-            if [ -n "$search_param" ]; then
-              API_URL="${API_URL}&search=${search_param}"
-            fi
-            
-            if [ -n "$version_param" ]; then
-              API_URL="${API_URL}&version=${version_param}"
-            fi
-            
-            echo "   API URL: $API_URL"
+  # Build API URL (search by build number only, same as main workflow)
+  API_URL="https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1"
+  
+  if [ -n "$search_param" ]; then
+    API_URL="${API_URL}&search=${search_param}"
+  fi
+  
+  # Note: Version parameter removed to match main workflow strategy            echo "   API URL: $API_URL"
             
             # Make API call
             RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" "$API_URL")
@@ -112,28 +108,20 @@ jobs:
                 echo "   🔗 Install URLs:"
                 echo "$RESPONSE" | jq -r '.items[] | select(.public_install_page_url != null) | "     • \(.app_name) (\(.workflow)): \(.public_install_page_url)"'
                 
-                # Try to find matching artifacts
-                if [ -n "$WORKFLOW_NAME" ]; then
-                  WORKFLOW_MATCH=$(echo "$RESPONSE" | jq -r --arg workflow "$WORKFLOW_NAME" \
-                    '.items[] | select(.workflow == $workflow) | .public_install_page_url // empty' | head -1)
-                  if [ -n "$WORKFLOW_MATCH" ] && [ "$WORKFLOW_MATCH" != "empty" ]; then
-                    echo "   ✅ Workflow match found: $WORKFLOW_MATCH"
-                  fi
-                fi
-                
-                if [ -n "$APP_NAME" ]; then
-                  APP_MATCH=$(echo "$RESPONSE" | jq -r --arg app "$APP_NAME" \
-                    '.items[] | select(.app_name | test($app; "i")) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                  if [ -n "$APP_MATCH" ] && [ "$APP_MATCH" != "empty" ]; then
-                    echo "   ✅ App name match found: $APP_MATCH"
-                  fi
-                fi
-                
-                BUILD_NUM_MATCH=$(echo "$RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
-                  '.items[] | select(.build_number == $build_num) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
-                if [ -n "$BUILD_NUM_MATCH" ] && [ "$BUILD_NUM_MATCH" != "empty" ]; then
-                  echo "   ✅ Build number match found: $BUILD_NUM_MATCH"
-                fi
+                      # Find the exact artifact matching the build number and platform (same strategy as main workflow)
+      BUILD_NUM_MATCH=$(echo "$RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
+        '.items[] | select(.build_number == $build_num) | select(.platform == "android") | select(.public_install_page_url != null) | .public_install_page_url' | head -1)
+      
+      if [ -n "$BUILD_NUM_MATCH" ] && [ "$BUILD_NUM_MATCH" != "empty" ] && [ "$BUILD_NUM_MATCH" != "null" ]; then
+        echo "   ✅ Build number match found: $BUILD_NUM_MATCH"
+        
+        # Show which artifact we matched (same as main workflow)
+        MATCHED_ARTIFACT=$(echo "$RESPONSE" | jq -r --arg url "$BUILD_NUM_MATCH" \
+          '.items[] | select(.public_install_page_url == $url) | "\(.app_name) - \(.workflow) - \(.filename) - Build #\(.build_number)"')
+        echo "   📱 Matched artifact: $MATCHED_ARTIFACT"
+      else
+        echo "   ⚠️ No public install page URL found for Android artifact with build number $BUILD_NUMBER"
+      fi
               else
                 echo "   ⚠️ No artifacts found with this search"
               fi
@@ -146,48 +134,28 @@ jobs:
           }
           
           # Execute different search strategies based on mode
-          case "$SEARCH_MODE" in
-            "build_number_only")
-              search_release_management "$BUILD_NUMBER" "" "Search by build number only"
-              ;;
-            "build_number_and_version")
-              search_release_management "$BUILD_NUMBER" "$VERSION" "Search by build number and version"
-              ;;
-            "workflow_match")
-              if [ -n "$WORKFLOW_NAME" ]; then
-                search_release_management "$WORKFLOW_NAME" "$VERSION" "Search by workflow name"
-              else
-                echo "⚠️ Workflow name not provided for workflow_match mode"
-              fi
-              ;;
-            "app_name_match")
-              if [ -n "$APP_NAME" ]; then
-                search_release_management "$APP_NAME" "$VERSION" "Search by app name"
-              else
-                echo "⚠️ App name not provided for app_name_match mode"
-              fi
-              ;;
-            "all_strategies")
-              search_release_management "$BUILD_NUMBER" "" "Strategy 1: Build number only"
-              
-              if [ -n "$VERSION" ]; then
-                search_release_management "$BUILD_NUMBER" "$VERSION" "Strategy 2: Build number + version"
-              fi
-              
-              if [ -n "$WORKFLOW_NAME" ]; then
-                search_release_management "$WORKFLOW_NAME" "$VERSION" "Strategy 3: Workflow name"
-              fi
-              
-              if [ -n "$APP_NAME" ]; then
-                search_release_management "$APP_NAME" "$VERSION" "Strategy 4: App name"
-              fi
-              
-              # Try a broad search
-              search_release_management "" "$VERSION" "Strategy 5: Version only (broad search)"
-              ;;
-          esac
-          
-          echo ""
+# Use the same strategy as main workflow: search by build number only
+case "$SEARCH_MODE" in
+  "build_number_only")
+    search_release_management "$BUILD_NUMBER" "" "Search by build number only (main workflow strategy)"
+    ;;
+  "build_number_and_version")
+    echo "⚠️ This mode is deprecated - main workflow now uses build number only"
+    search_release_management "$BUILD_NUMBER" "" "Search by build number only (fallback to main workflow strategy)"
+    ;;
+  "workflow_match")
+    echo "⚠️ This mode is deprecated - main workflow now uses build number only"
+    search_release_management "$BUILD_NUMBER" "" "Search by build number only (fallback to main workflow strategy)"
+    ;;
+  "app_name_match")
+    echo "⚠️ This mode is deprecated - main workflow now uses build number only"
+    search_release_management "$BUILD_NUMBER" "" "Search by build number only (fallback to main workflow strategy)"
+    ;;
+  "all_strategies")
+    echo "🔄 Using main workflow strategy: build number only"
+    search_release_management "$BUILD_NUMBER" "" "Main Workflow Strategy: Build number only"
+    ;;
+esac          echo ""
           echo "🎯 Summary & Recommendations:"
           echo "=================================="
           echo "• If no results found, the build may not have generated installable artifacts yet"
