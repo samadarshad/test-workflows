@@ -1689,13 +1689,14 @@ jobs:
             
             # Calculate total apps for context
             APP_COUNT=$(echo "$APPS" | jq -r '. | length' 2>/dev/null || echo "unknown")
+            CURRENT_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
             
             # Create cancellation message
             MESSAGE_TEXT="🚫 *Build Workflow Cancelled*
             
             📦 *Release Version:* $VERSION
             👤 *Cancelled by:* @${{ github.actor }}
-            🕐 *Cancelled at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            🕐 *Cancelled at:* $CURRENT_TIME
             📱 *Apps affected:* $APP_COUNT apps
             
             ℹ️ *Status:* Workflow was cancelled - Bitrise builds cleanup attempted
@@ -1704,28 +1705,15 @@ jobs:
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
             
-            # Determine channel
-            CHANNEL_OVERRIDE=""
-            if [ -n "$SLACK_CHANNEL" ]; then
-              CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
-            fi
+            # Create base payload
+            TEXT_FIELD="🚫 Build Workflow Cancelled - Release $VERSION"
             
-            # Create and send payload
-            PAYLOAD=$(cat << EOF
-            {
-              "text": "🚫 Build Workflow Cancelled - Release $VERSION"$CHANNEL_OVERRIDE,
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": $MESSAGE_CONTENT
-                  }
-                }
-              ]
-            }
-            EOF
-            )
+            # Add channel override if specified
+            if [ -n "$SLACK_CHANNEL" ]; then
+              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"channel\":\"$SLACK_CHANNEL\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
+            else
+              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
+            fi
             
             curl -X POST -H 'Content-type: application/json' \
               --data "$PAYLOAD" \
