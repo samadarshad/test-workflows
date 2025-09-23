@@ -145,25 +145,104 @@ jobs:
           
           echo "apps=$APPS" >> $GITHUB_OUTPUT
       
-      - name: Display build information
+      - name: 📋 Build Summary
         run: |
-          echo "========================================="
-          echo "📦 BUILD CONFIGURATION"
-          echo "========================================="
-          echo "Version: ${{ steps.determine-version.outputs.version }}"
-          echo "Release Exists: ${{ steps.check-release.outputs.exists }}"
-          echo "Apps to build: ${{ steps.determine-apps.outputs.apps }}"
-          echo "========================================="
-          
-          # Parse and display apps in a readable format
+          VERSION="${{ steps.determine-version.outputs.version }}"
+          RELEASE_EXISTS="${{ steps.check-release.outputs.exists }}"
           APPS='${{ steps.determine-apps.outputs.apps }}'
+          
           echo ""
-          echo "Apps list:"
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║                        � BUILD SUMMARY                      ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "🏷️  RELEASE VERSION: $VERSION"
+          echo "📦 RELEASE STATUS:   $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Exists" || echo "⚠️  Not found")"
+          echo "🎯 BUILD STRATEGY:   ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }}"
+          echo "📱 APP SELECTION:    ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }}"
+          echo "👤 TRIGGERED BY:     @${{ github.actor }}"
+          echo "🕐 STARTED AT:       $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "📋 APPS TO BUILD:"
           echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "  - $app"
+            echo "   • $app"
           done
           echo ""
-          echo "========================================="
+          
+          # Calculate total builds
+          APP_COUNT=$(echo "$APPS" | jq -r '. | length')
+          TOTAL_BUILDS=$((APP_COUNT * 4))
+          
+          echo "📊 BUILD DETAILS:"
+          echo "   • Total Apps: $APP_COUNT"
+          echo "   • Platforms: Android & iOS"
+          echo "   • Environments: Staging & Production"
+          echo "   • Total Builds: $TOTAL_BUILDS"
+          echo ""
+          echo "🔗 REFERENCE LINKS:"
+          if [ "$RELEASE_EXISTS" == "true" ]; then
+            echo "   • Release: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
+          else
+            echo "   • ⚠️  Release not found - will be created during build process"
+          fi
+          echo "   • Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "   • Repository: https://github.com/${{ github.repository }}"
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "🚀 Starting Bitrise builds for $TOTAL_BUILDS workflows..."
+          echo "═══════════════════════════════════════════════════════════════"
+          echo ""
+          
+          # Create GitHub Step Summary
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🚀 Build Summary
+          
+          ## 📋 Build Configuration
+          
+          | Field | Value |
+          |-------|-------|
+          | **Release Version** | \`$VERSION\` |
+          | **Release Exists** | $([ "$RELEASE_EXISTS" == "true" ] && echo "✅ Yes" || echo "⚠️ No") |
+          | **Build Strategy** | ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }} |
+          | **App Selection** | ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }} |
+          | **Triggered By** | @${{ github.actor }} |
+          | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          
+          ## 📱 Apps to Build
+          
+          EOF
+          
+          echo "$APPS" | jq -r '.[]' | while read app; do
+            echo "- **$app** (Android + iOS, Staging + Production)" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          
+          ## 📊 Build Overview
+          
+          - **Total Apps**: $APP_COUNT
+          - **Platforms**: Android & iOS
+          - **Environments**: Staging & Production  
+          - **Total Builds**: $TOTAL_BUILDS
+          
+          ## 🔗 Links
+          
+          EOF
+          
+          if [ "$RELEASE_EXISTS" == "true" ]; then
+            echo "- [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Release $VERSION not found (will be created during build)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [📂 Repository](https://github.com/${{ github.repository }})
+          
+          ---
+          
+          **Next**: Triggering $TOTAL_BUILDS Bitrise builds across all apps, platforms, and environments...
+          EOF
   
   build-apps:
     needs: determine-build-parameters
