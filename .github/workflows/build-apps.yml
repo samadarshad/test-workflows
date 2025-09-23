@@ -498,8 +498,13 @@ jobs:
           - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
           EOF
           
-          # Show final build status and install links
-          if [ "$BUILD_COMPLETED" = "true" ]; then
+          # Check if build was even triggered
+          if [ -z "$BUILD_NUMBER" ]; then
+            echo "- **Build Number**: _Build not triggered_" >> $GITHUB_STEP_SUMMARY
+            echo "- **Install Page**: _No build available_" >> $GITHUB_STEP_SUMMARY
+            echo "- **Status**: ❌ **FAILED** - Build trigger failed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Bitrise Build**: _No build URL available_" >> $GITHUB_STEP_SUMMARY
+          elif [ "$BUILD_COMPLETED" = "true" ]; then
             case "$FINAL_STATUS" in
               "success")
                 if [ "${{ matrix.platform }}" = "android" ]; then
