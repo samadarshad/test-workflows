@@ -148,7 +148,9 @@ jobs:
   build-apps:
     needs: determine-build-parameters
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         app: ${{ fromJson(needs.determine-build-parameters.outputs.apps) }}
         platform: [android, ios]
