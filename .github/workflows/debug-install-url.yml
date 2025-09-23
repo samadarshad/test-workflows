@@ -1,0 +1,264 @@
+name: Debug Install URL
+
+run-name: "Debug Install URL: Build #${{ github.event.inputs.build_number }} - ${{ github.event.inputs.app_name }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Bitrise build number to search for'
+        required: true
+        type: string
+      
+      app_name:
+        description: 'App name (optional - helps with filtering)'
+        required: false
+        type: string
+        default: 'ev.energy'
+      
+      version:
+        description: 'Version to search for (optional - e.g., 3.29.0 without v prefix)'
+        required: false
+        type: string
+      
+      workflow_name:
+        description: 'Workflow name to match (optional - e.g., evenergy-android-staging)'
+        required: false
+        type: string
+      
+      search_mode:
+        description: 'Search strategy to use'
+        required: true
+        type: choice
+        options:
+          - build_number_only
+          - build_number_and_version
+          - workflow_match
+          - app_name_match
+          - all_strategies
+        default: all_strategies
+
+jobs:
+  debug-install-url:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Debug Release Management API
+        run: |
+          BUILD_NUMBER="${{ github.event.inputs.build_number }}"
+          APP_NAME="${{ github.event.inputs.app_name }}"
+          VERSION="${{ github.event.inputs.version }}"
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          SEARCH_MODE="${{ github.event.inputs.search_mode }}"
+          CONNECTED_APP_ID="${{ secrets.BITRISE_CONNECTED_APP_ID }}"
+          
+          echo "🔍 Debug Install URL Lookup"
+          echo "=================================="
+          echo "Build Number: $BUILD_NUMBER"
+          echo "App Name: $APP_NAME"
+          echo "Version: $VERSION"
+          echo "Workflow Name: $WORKFLOW_NAME"
+          echo "Search Mode: $SEARCH_MODE"
+          echo "Connected App ID: ${CONNECTED_APP_ID:0:8}..." # Show first 8 chars for security
+          echo "=================================="
+          
+          if [ -z "$CONNECTED_APP_ID" ]; then
+            echo "❌ BITRISE_CONNECTED_APP_ID secret is not set!"
+            echo "💡 Please set this secret to the Bitrise Connected App ID for Release Management API"
+            exit 1
+          fi
+          
+          # Function to search Release Management API
+          search_release_management() {
+            local search_param="$1"
+            local version_param="$2"
+            local description="$3"
+            
+            echo ""
+            echo "🔍 $description"
+            echo "   Search: $search_param"
+            echo "   Version: $version_param"
+            
+            # Build API URL
+            API_URL="https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1"
+            
+            if [ -n "$search_param" ]; then
+              API_URL="${API_URL}&search=${search_param}"
+            fi
+            
+            if [ -n "$version_param" ]; then
+              API_URL="${API_URL}&version=${version_param}"
+            fi
+            
+            echo "   API URL: $API_URL"
+            
+            # Make API call
+            RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" "$API_URL")
+            
+            echo "   HTTP Response:"
+            if echo "$RESPONSE" | jq empty 2>/dev/null; then
+              echo "$RESPONSE" | jq .
+              
+              # Check item count
+              ITEM_COUNT=$(echo "$RESPONSE" | jq -r '.count // 0')
+              echo "   Found: $ITEM_COUNT items"
+              
+              if [ "$ITEM_COUNT" -gt 0 ]; then
+                echo ""
+                echo "   📋 Artifacts found:"
+                echo "$RESPONSE" | jq -r '.items[] | "     • \(.app_name) - \(.workflow) - \(.platform) - Build #\(.build_number) - \(.filename)"'
+                
+                echo ""
+                echo "   🔗 Install URLs:"
+                echo "$RESPONSE" | jq -r '.items[] | select(.public_install_page_url != null) | "     • \(.app_name) (\(.workflow)): \(.public_install_page_url)"'
+                
+                # Try to find matching artifacts
+                if [ -n "$WORKFLOW_NAME" ]; then
+                  WORKFLOW_MATCH=$(echo "$RESPONSE" | jq -r --arg workflow "$WORKFLOW_NAME" \
+                    '.items[] | select(.workflow == $workflow) | .public_install_page_url // empty' | head -1)
+                  if [ -n "$WORKFLOW_MATCH" ] && [ "$WORKFLOW_MATCH" != "empty" ]; then
+                    echo "   ✅ Workflow match found: $WORKFLOW_MATCH"
+                  fi
+                fi
+                
+                if [ -n "$APP_NAME" ]; then
+                  APP_MATCH=$(echo "$RESPONSE" | jq -r --arg app "$APP_NAME" \
+                    '.items[] | select(.app_name | test($app; "i")) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
+                  if [ -n "$APP_MATCH" ] && [ "$APP_MATCH" != "empty" ]; then
+                    echo "   ✅ App name match found: $APP_MATCH"
+                  fi
+                fi
+                
+                BUILD_NUM_MATCH=$(echo "$RESPONSE" | jq -r --arg build_num "$BUILD_NUMBER" \
+                  '.items[] | select(.build_number == $build_num) | select(.platform == "android") | .public_install_page_url // empty' | head -1)
+                if [ -n "$BUILD_NUM_MATCH" ] && [ "$BUILD_NUM_MATCH" != "empty" ]; then
+                  echo "   ✅ Build number match found: $BUILD_NUM_MATCH"
+                fi
+              else
+                echo "   ⚠️ No artifacts found with this search"
+              fi
+            else
+              echo "   ❌ Invalid JSON response:"
+              echo "$RESPONSE"
+            fi
+            
+            echo "   ────────────────────────────────────────"
+          }
+          
+          # Execute different search strategies based on mode
+          case "$SEARCH_MODE" in
+            "build_number_only")
+              search_release_management "$BUILD_NUMBER" "" "Search by build number only"
+              ;;
+            "build_number_and_version")
+              search_release_management "$BUILD_NUMBER" "$VERSION" "Search by build number and version"
+              ;;
+            "workflow_match")
+              if [ -n "$WORKFLOW_NAME" ]; then
+                search_release_management "$WORKFLOW_NAME" "$VERSION" "Search by workflow name"
+              else
+                echo "⚠️ Workflow name not provided for workflow_match mode"
+              fi
+              ;;
+            "app_name_match")
+              if [ -n "$APP_NAME" ]; then
+                search_release_management "$APP_NAME" "$VERSION" "Search by app name"
+              else
+                echo "⚠️ App name not provided for app_name_match mode"
+              fi
+              ;;
+            "all_strategies")
+              search_release_management "$BUILD_NUMBER" "" "Strategy 1: Build number only"
+              
+              if [ -n "$VERSION" ]; then
+                search_release_management "$BUILD_NUMBER" "$VERSION" "Strategy 2: Build number + version"
+              fi
+              
+              if [ -n "$WORKFLOW_NAME" ]; then
+                search_release_management "$WORKFLOW_NAME" "$VERSION" "Strategy 3: Workflow name"
+              fi
+              
+              if [ -n "$APP_NAME" ]; then
+                search_release_management "$APP_NAME" "$VERSION" "Strategy 4: App name"
+              fi
+              
+              # Try a broad search
+              search_release_management "" "$VERSION" "Strategy 5: Version only (broad search)"
+              ;;
+          esac
+          
+          echo ""
+          echo "🎯 Summary & Recommendations:"
+          echo "=================================="
+          echo "• If no results found, the build may not have generated installable artifacts yet"
+          echo "• Android builds typically take a few minutes after completion to appear in Release Management"
+          echo "• iOS builds may not appear in Release Management if using TestFlight/App Store distribution"
+          echo "• Check the build_number matches exactly (no leading zeros, etc.)"
+          echo "• Ensure the Connected App ID is correct for your Bitrise project"
+          echo ""
+          echo "🔧 Troubleshooting steps:"
+          echo "1. Verify the build completed successfully on Bitrise"
+          echo "2. Check if the build produced an APK/IPA file"
+          echo "3. Confirm Release Management is enabled for the app"
+          echo "4. Try searching with different parameters"
+          echo "5. Check Bitrise Release Management dashboard manually"
+      
+      - name: Create debug summary
+        run: |
+          BUILD_NUMBER="${{ github.event.inputs.build_number }}"
+          APP_NAME="${{ github.event.inputs.app_name }}"
+          VERSION="${{ github.event.inputs.version }}"
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          SEARCH_MODE="${{ github.event.inputs.search_mode }}"
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🔍 Install URL Debug Results
+          
+          ## 📋 Search Parameters
+          
+          | Parameter | Value |
+          |-----------|-------|
+          | **Build Number** | \`$BUILD_NUMBER\` |
+          | **App Name** | \`$APP_NAME\` |
+          | **Version** | \`$VERSION\` |
+          | **Workflow Name** | \`$WORKFLOW_NAME\` |
+          | **Search Mode** | \`$SEARCH_MODE\` |
+          | **Connected App ID** | \`${CONNECTED_APP_ID:0:8}...\` |
+          
+          ## 🎯 What This Workflow Does
+          
+          This debug workflow tests the Bitrise Release Management API to find public install page URLs for Android builds.
+          
+          **Search Strategies:**
+          - **build_number_only**: Search using just the build number
+          - **build_number_and_version**: Search using build number + version
+          - **workflow_match**: Search using the workflow name
+          - **app_name_match**: Search using the app name
+          - **all_strategies**: Try all of the above methods
+          
+          ## 📊 Results
+          
+          Check the job logs above for detailed API responses and matching results.
+          
+          ## 🔗 Useful Links
+          
+          - [Bitrise Release Management API Docs](https://api.bitrise.io/release-management/api-docs)
+          - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
+          - [Release Management Dashboard](https://app.bitrise.io/release-management)
+          
+          ## 🚀 Next Steps
+          
+          If you found working install URLs:
+          1. Note which search strategy worked best
+          2. Update the main build workflow with the successful approach
+          3. Test with different build numbers to verify consistency
+          
+          If no URLs were found:
+          1. Verify the build completed and produced artifacts
+          2. Check Release Management is enabled in Bitrise
+          3. Try with a different build number
+          4. Contact Bitrise support if the API seems broken
+          
+          ---
+          *Debug completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          EOF
