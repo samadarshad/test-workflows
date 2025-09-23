@@ -974,15 +974,15 @@ jobs:
             fi
             
             # Create and send payload
-            PAYLOAD=$(cat << EOF
+            PAYLOAD=$(cat << 'EOF'
             {
-              "text": "🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"$CHANNEL_OVERRIDE,
+              "text": "🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"'"$CHANNEL_OVERRIDE"',
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": $MESSAGE_CONTENT
+                    "text": '"$MESSAGE_CONTENT"'
                   }
                 }
               ]
