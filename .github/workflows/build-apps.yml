@@ -556,7 +556,7 @@ jobs:
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
           FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
-          FINAL_INSTALL_URL="${{ steps.wait-for-completion.outputs.final_public_install_url }}"
+          FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
           
           # Create build result JSON
           BUILD_RESULT=$(cat <<EOF
