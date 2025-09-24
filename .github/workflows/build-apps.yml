@@ -196,7 +196,7 @@ jobs:
           echo ""
           
           # Create GitHub Step Summary
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           # 🚀 Build Summary
           
           ## 📋 Build Configuration
@@ -217,7 +217,7 @@ jobs:
             echo "- **$app** (Android + iOS, Staging + Production)" >> $GITHUB_STEP_SUMMARY
           done
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ## 📊 Build Overview
           
@@ -232,7 +232,7 @@ jobs:
           
           echo "- [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [📂 Repository](https://github.com/${{ github.repository }})
           
@@ -438,7 +438,7 @@ jobs:
           BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
           
           # Create build slug info for cancellation purposes
-          BUILD_INFO=$(cat <<EOF
+          BUILD_INFO=$(cat << EOF
           {
             "app": "${{ matrix.app }}",
             "platform": "${{ matrix.platform }}",
@@ -696,7 +696,7 @@ jobs:
           FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
           FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           ### ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
           - **Workflow**: \`${{ steps.build-config.outputs.workflow_name }}\`
           - **Branch**: \`${{ steps.build-config.outputs.branch_name }}\`
@@ -770,7 +770,7 @@ jobs:
           
           # Add Bitrise build link if available
           if [ -n "${{ steps.trigger-bitrise.outputs.build_url }}" ]; then
-            cat >> $GITHUB_STEP_SUMMARY <<EOF
+            cat >> $GITHUB_STEP_SUMMARY << EOF
           - **Bitrise Build**: [View Build Details](${{ steps.trigger-bitrise.outputs.build_url }})
           
           EOF
@@ -799,7 +799,7 @@ jobs:
           fi
           
           # Create build result JSON
-          BUILD_RESULT=$(cat <<EOF
+          BUILD_RESULT=$(cat << EOF
           {
             "app": "${{ matrix.app }}",
             "platform": "${{ matrix.platform }}",
@@ -953,7 +953,7 @@ jobs:
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           # 🚀 Bitrise Build Summary
           
           ## 📋 Build Information
@@ -1062,7 +1062,7 @@ jobs:
             OVERALL_STATUS="🔄 **IN PROGRESS** - Some builds still processing"
           fi
           
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ## 📊 Summary
           
@@ -1264,7 +1264,7 @@ jobs:
           MARKDOWN_MESSAGE=$(echo "$SLACK_MESSAGE" | sed -E 's/<([^|]+)\|([^>]+)>/[\2](\1)/g')
           
           # Add only the message content to GitHub Step Summary
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           $MARKDOWN_MESSAGE
           EOF
       
@@ -1289,7 +1289,7 @@ jobs:
             local content="$1"
             local title="$2"
             
-            local payload=$(cat <<EOF
+            local payload=$(cat << EOF
           {
             "text": "$title",
             "blocks": [
@@ -1479,7 +1479,7 @@ jobs:
         if: always()
         run: |
           CURRENT_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           # 🚫 Workflow Cancelled - Bitrise Build Cleanup
           
           ## 📋 Cancellation Information
