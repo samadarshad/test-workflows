@@ -242,7 +242,7 @@ jobs:
           
           1. **Individual Build Steps**: Each build will show its Bitrise link in its own step summary below
           2. **Summary Table**: Check the "Bitrise Build Summary" at the end for all links in one consolidated table
-          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }}) to see all builds
+          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }}) to see all builds
           
           ---
           EOF
@@ -373,7 +373,7 @@ jobs:
       - name: Trigger Bitrise build
         id: trigger-bitrise
         env:
-          BITRISE_APP_ID: ${{ secrets.BITRISE_PROJECT_SLUG }}
+          BITRISE_APP_ID: ${{ vars.BITRISE_PROJECT_SLUG }}
           BITRISE_ACCESS_TOKEN: ${{ secrets.BITRISE_ACCESS_TOKEN }}
         run: |
           WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
@@ -481,12 +481,12 @@ jobs:
           echo "⏳ Waiting for Bitrise build to complete..."
           echo "Build Slug: $BUILD_SLUG"
           echo "Maximum wait time: ${MAX_WAIT_TIME} seconds"
-          echo "API URL: https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}"
+          echo "API URL: https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}"
           
           while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
             # Get build status with HTTP status code
             HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
-              "https://api.bitrise.io/v0.1/apps/${{ secrets.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
+              "https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
             
             # Extract HTTP status and body
             HTTP_STATUS=$(echo "$HTTP_RESPONSE" | grep -o 'HTTPSTATUS:[0-9]*' | cut -d: -f2)
@@ -1101,7 +1101,7 @@ jobs:
           - [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
           EOF
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }})
+          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
           ## ⚠️ Important Notes
           
@@ -1451,7 +1451,7 @@ jobs:
       
       - name: Cancel Bitrise builds
         env:
-          BITRISE_APP_ID: ${{ secrets.BITRISE_PROJECT_SLUG }}
+          BITRISE_APP_ID: ${{ vars.BITRISE_PROJECT_SLUG }}
           BITRISE_ACCESS_TOKEN: ${{ secrets.BITRISE_ACCESS_TOKEN }}
         run: |
           echo "🚫 Workflow cancelled - attempting to cancel Bitrise builds..."
@@ -1574,7 +1574,7 @@ jobs:
           ## 🔗 Links
           
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }})
+          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
           ---
           *Cancellation processed at $CURRENT_TIME*
