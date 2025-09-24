@@ -1281,15 +1281,14 @@ jobs:
           
           ## 🚀 Build Results for Release $VERSION
           
-          \`\`\`
           $(cat slack_message.txt)
-          \`\`\`
           
           ## 📱 Quick Copy Options
           
           **For Slack Desktop/Web:**
-          1. Copy the message content above (between the \`\`\` marks)
+          1. Copy the message content above
           2. Paste directly into your Slack channel
+          3. Links should format properly when pasted
           
           ---
           
