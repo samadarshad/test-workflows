@@ -20,7 +20,7 @@
 
 name: Build Apps
 
-run-name: "Build Apps: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Latest Release' }} - ${{ github.event.inputs.app_selection == 'all' && 'All apps' || github.event.inputs.specific_app }}"
+run-name: "Build Apps: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Latest Release' }} - ${{ github.event.inputs.app_selection }}"
 
 on:
   workflow_dispatch:
@@ -35,22 +35,14 @@ on:
         required: true
         type: choice
         options:
-          - all
-          - specific
-        default: all
-      
-      specific_app:
-        description: 'Specific app name (only used if app_selection is "specific")'
-        required: false
-        type: choice
-        options:
+          - All Apps
           - ev.energy
           - NGMA
           - NGNY
           - SVCE
           - MCE
           - ANWB
-        default: ev.energy
+        default: All Apps
 
 jobs:
   determine-build-parameters:
@@ -148,12 +140,12 @@ jobs:
       - name: Determine apps to build
         id: determine-apps
         run: |
-          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+          if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
             APPS='["ev.energy", "NGMA", "NGNY", "SVCE", "MCE", "ANWB"]'
             echo "Building all apps"
           else
-            APPS='["${{ github.event.inputs.specific_app }}"]'
-            echo "Building specific app: ${{ github.event.inputs.specific_app }}"
+            APPS='["${{ github.event.inputs.app_selection }}"]'
+            echo "Building specific app: ${{ github.event.inputs.app_selection }}"
           fi
           
           echo "apps=$APPS" >> $GITHUB_OUTPUT
@@ -170,8 +162,8 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
           echo "🏷️  RELEASE VERSION: $VERSION"
-          echo "🎯 BUILD STRATEGY:   ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }}"
-          echo "📱 APP SELECTION:    ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }}"
+          echo "🎯 BUILD STRATEGY:   ${{ github.event.inputs.version != '' && 'Manual Version' || 'Latest Release' }}"
+          echo "📱 APP SELECTION:    ${{ github.event.inputs.app_selection }}"
           echo "👤 TRIGGERED BY:     @${{ github.actor }}"
           echo "🕐 STARTED AT:       $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo ""
@@ -210,8 +202,8 @@ jobs:
           | Field | Value |
           |-------|-------|
           | **Release Version** | \`$VERSION\` |
-          | **Build Strategy** | ${{ github.event.inputs.version_source == 'latest' && 'Latest Release' || 'Manual Version' }} |
-          | **App Selection** | ${{ github.event.inputs.app_selection == 'all' && 'All Apps' || 'Single App' }} |
+          | **Build Strategy** | ${{ github.event.inputs.version != '' && 'Manual Version' || 'Latest Release' }} |
+          | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered By** | @${{ github.actor }} |
           | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
           
@@ -284,10 +276,10 @@ jobs:
           TOTAL_BUILDS=$((APP_COUNT * 4))
           
           # Determine app description for concise message
-          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+          if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
             APP_DESCRIPTION="All apps"
           else
-            APP_DESCRIPTION="${{ github.event.inputs.specific_app }}"
+            APP_DESCRIPTION="${{ github.event.inputs.app_selection }}"
           fi
           
           # Create minimal one-line message
@@ -1080,7 +1072,7 @@ jobs:
           |-------|-------|
           | **Version** | \`$VERSION\` |
           | **Release Branch** | \`release/$VERSION\` |
-          | **Version Source** | ${{ github.event.inputs.version_source }} |
+          | **Version Source** | ${{ github.event.inputs.version != '' && 'Manual' || 'Latest Release' }} |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
@@ -1680,10 +1672,10 @@ jobs:
             APPS='${{ needs.determine-build-parameters.outputs.apps }}'
             
             # Determine app description for concise message
-            if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+            if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
               APP_DESCRIPTION="All apps"
             else
-              APP_DESCRIPTION="${{ github.event.inputs.specific_app }}"
+              APP_DESCRIPTION="${{ github.event.inputs.app_selection }}"
             fi
             
             # Create minimal cancellation message
