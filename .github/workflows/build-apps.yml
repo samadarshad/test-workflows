@@ -1293,105 +1293,87 @@ jobs:
           
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           
-          # Read the message and escape for JSON
+          # Read the message and check size
           MESSAGE_CONTENT=$(cat slack_message.txt | jq -Rs .)
-          
-          # Check message size (Slack has a 3000 character limit for blocks)
           MESSAGE_LENGTH=$(echo "$MESSAGE_CONTENT" | jq -r length)
           echo "📏 Message length: $MESSAGE_LENGTH characters"
           
-          # If message is too long (over 2800 chars to leave buffer), send summary with link
-          if [ "$MESSAGE_LENGTH" -gt 2800 ]; then
-            echo "⚠️ Message too long ($MESSAGE_LENGTH chars) - sending summary with workflow link"
+          # Function to send a Slack message
+          send_slack_message() {
+            local content="$1"
+            local title="$2"
             
-            # Count builds
-            SUCCESS_COUNT=$(grep -c '"status":"success"' build-results/*.json 2>/dev/null || echo "0")
-            TOTAL_COUNT=$(find build-results -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
-            FAILED_COUNT=$((TOTAL_COUNT - SUCCESS_COUNT))
-            
-            # Create short summary message
-            SUMMARY_MESSAGE="🚀 *Build Results for Release $VERSION*
-            
-            📊 *Summary:* $SUCCESS_COUNT successful, $FAILED_COUNT failed (out of $TOTAL_COUNT total builds)
-            👤 *Triggered by:* @${{ github.actor }}
-            
-            📋 *Full Details:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Complete Build Summary>
-            
-            💡 *Note:* Full build details with install links are available in the workflow summary above."
-            
-            MESSAGE_CONTENT=$(echo "$SUMMARY_MESSAGE" | jq -Rs .)
-          fi
-          
-          # Create JSON payload
-          PAYLOAD=$(cat <<EOF
+            local payload=$(cat <<EOF
           {
-            "text": "🚀 Build Results for Release $VERSION",
+            "text": "$title",
             "blocks": [
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": $MESSAGE_CONTENT
+                  "text": $content
                 }
               }
             ]
           }
           EOF
           )
-          
-          echo "Final payload preview:"
-          echo "$PAYLOAD" | jq .
-          
-          # Send to Slack
-          RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
-            --data "$PAYLOAD" \
-            "$SLACK_WEBHOOK_URL")
-          
-          if [ "$RESPONSE" = "ok" ]; then
-            if [ "$MESSAGE_LENGTH" -gt 2800 ]; then
-              echo "✅ Summary Slack notification sent successfully (full details in workflow link)!"
-            else
-              echo "✅ Detailed Slack notification sent successfully!"
-            fi
-          else
-            echo "❌ Failed to send Slack notification. Response: $RESPONSE"
             
-            # If it still fails, try sending just a basic link message
-            echo "🔄 Attempting fallback message..."
-            FALLBACK_MESSAGE="🚀 *Build Results for Release $VERSION*
+            echo "📤 Sending message part..."
+            echo "$payload" | jq .
             
-            📋 *View Results:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Build Summary>
-            👤 *Triggered by:* @${{ github.actor }}"
-            
-            FALLBACK_CONTENT=$(echo "$FALLBACK_MESSAGE" | jq -Rs .)
-            FALLBACK_PAYLOAD=$(cat <<EOF
-            {
-              "text": "🚀 Build Results for Release $VERSION",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": $FALLBACK_CONTENT
-                  }
-                }
-              ]
-            }
-            EOF
-            )
-            
-            FALLBACK_RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
-              --data "$FALLBACK_PAYLOAD" \
+            local response=$(curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" \
               "$SLACK_WEBHOOK_URL")
             
-            if [ "$FALLBACK_RESPONSE" = "ok" ]; then
-              echo "✅ Fallback Slack notification sent successfully!"
+            if [ "$response" = "ok" ]; then
+              echo "✅ Message sent successfully!"
+              return 0
             else
-              echo "❌ Both main and fallback Slack notifications failed."
-              echo "Main response: $RESPONSE"
-              echo "Fallback response: $FALLBACK_RESPONSE"
-              exit 1
+              echo "❌ Failed to send message. Response: $response"
+              return 1
             fi
+          }
+          
+          # If message is short enough, send as single message
+          if [ "$MESSAGE_LENGTH" -le 2800 ]; then
+            echo "� Sending complete message in single notification"
+            send_slack_message "$MESSAGE_CONTENT" "🚀 Build Results for Release $VERSION"
+          else
+            echo "� Message too long ($MESSAGE_LENGTH chars) - splitting into multiple messages"
+            
+            # Split message by apps
+            APPS='${{ needs.determine-build-parameters.outputs.apps }}'
+            
+            # Send header message first
+            HEADER_MESSAGE="🚀 *Build Results for Release $VERSION*"
+            HEADER_CONTENT=$(echo "$HEADER_MESSAGE" | jq -Rs .)
+            send_slack_message "$HEADER_CONTENT" "🚀 Build Results for Release $VERSION"
+            
+            # Send each app as separate message
+            echo "$APPS" | jq -r '.[]' | while read app; do
+              echo "📤 Sending results for app: $app"
+              
+              # Extract app-specific results
+              APP_MESSAGE=$(grep -A 3 "○ \*$app\*" slack_message.txt | head -3)
+              
+              if [ -n "$APP_MESSAGE" ]; then
+                APP_CONTENT=$(echo "$APP_MESSAGE" | jq -Rs .)
+                send_slack_message "$APP_CONTENT" "📱 $app Results"
+                
+                # Small delay between messages
+                sleep 1
+              fi
+            done
+            
+            # Send footer message
+            FOOTER_MESSAGE=":rocket: *Release:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
+            :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+            
+            FOOTER_CONTENT=$(echo "$FOOTER_MESSAGE" | jq -Rs .)
+            send_slack_message "$FOOTER_CONTENT" "🔗 Build Links"
+            
+            echo "✅ All message parts sent successfully!"
           fi
         env:
           SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
