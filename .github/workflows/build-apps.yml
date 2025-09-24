@@ -1230,6 +1230,12 @@ jobs:
           VERSION="${{ needs.determine-build-parameters.outputs.version }}"
           
           echo "📱 Preparing Slack message for release $VERSION"
+          
+          # Initialize message with title
+          cat > slack_message.txt << EOF
+          📊 *Build Results for Release $VERSION*
+          
+          EOF
                    
           # Process build results by app
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
@@ -1252,18 +1258,18 @@ jobs:
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
               if [ "$STATUS" = "aborted" ]; then
-                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                # Build was aborted - show "(aborted)" with Bitrise link
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  STAGING_ANDROID="<$BITRISE_URL|N/A (aborted)>"
+                  STAGING_ANDROID="<$BITRISE_URL|(aborted)>"
                 else
-                  STAGING_ANDROID="N/A (aborted)"
+                  STAGING_ANDROID="(aborted)"
                 fi
               elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  STAGING_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                  STAGING_ANDROID="<$BITRISE_URL|(failed)>"
                 else
-                  STAGING_ANDROID="$BUILD_NUM (failed)"
+                  STAGING_ANDROID="(failed)"
                 fi
               elif [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
                 STAGING_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
@@ -1280,18 +1286,18 @@ jobs:
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
               if [ "$STATUS" = "aborted" ]; then
-                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                # Build was aborted - show "(aborted)" with Bitrise link
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  STAGING_IOS="<$BITRISE_URL|N/A (aborted)>"
+                  STAGING_IOS="<$BITRISE_URL|(aborted)>"
                 else
-                  STAGING_IOS="N/A (aborted)"
+                  STAGING_IOS="(aborted)"
                 fi
               elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  STAGING_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                  STAGING_IOS="<$BITRISE_URL|(failed)>"
                 else
-                  STAGING_IOS="$BUILD_NUM (failed)"
+                  STAGING_IOS="(failed)"
                 fi
               else
                 # iOS builds don't need install URLs
@@ -1308,18 +1314,18 @@ jobs:
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
               if [ "$STATUS" = "aborted" ]; then
-                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                # Build was aborted - show "(aborted)" with Bitrise link
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  PROD_ANDROID="<$BITRISE_URL|N/A (aborted)>"
+                  PROD_ANDROID="<$BITRISE_URL|(aborted)>"
                 else
-                  PROD_ANDROID="N/A (aborted)"
+                  PROD_ANDROID="(aborted)"
                 fi
               elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  PROD_ANDROID="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                  PROD_ANDROID="<$BITRISE_URL|(failed)>"
                 else
-                  PROD_ANDROID="$BUILD_NUM (failed)"
+                  PROD_ANDROID="(failed)"
                 fi
               elif [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
                 PROD_ANDROID="<$INSTALL_URL|$BUILD_NUM>"
@@ -1336,18 +1342,18 @@ jobs:
               BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
               
               if [ "$STATUS" = "aborted" ]; then
-                # Build was aborted - show "N/A (aborted)" with Bitrise link
+                # Build was aborted - show "(aborted)" with Bitrise link
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  PROD_IOS="<$BITRISE_URL|N/A (aborted)>"
+                  PROD_IOS="<$BITRISE_URL|(aborted)>"
                 else
-                  PROD_IOS="N/A (aborted)"
+                  PROD_IOS="(aborted)"
                 fi
               elif [ "$STATUS" != "success" ]; then
                 # Build failed - link to Bitrise build with failure indicator
                 if [ -n "$BITRISE_URL" ] && [ "$BITRISE_URL" != "null" ] && [ "$BITRISE_URL" != "empty" ]; then
-                  PROD_IOS="<$BITRISE_URL|$BUILD_NUM (failed)>"
+                  PROD_IOS="<$BITRISE_URL|(failed)>"
                 else
-                  PROD_IOS="$BUILD_NUM (failed)"
+                  PROD_IOS="(failed)"
                 fi
               else
                 # iOS builds don't need install URLs
