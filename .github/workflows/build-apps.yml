@@ -718,7 +718,7 @@ jobs:
         with:
           name: build-result-${{ matrix.app }}-${{ matrix.platform }}-${{ matrix.environment }}
           path: build-results/
-          retention-days: 7
+          retention-days: 1
       
       - name: Send immediate failure notification
         if: steps.extract-status.outputs.build_failed == 'true'
