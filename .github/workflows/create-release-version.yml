@@ -156,8 +156,8 @@ jobs:
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version != '' && 'Manual' || 'Auto-increment' }} |
-          | **Release Branch** | \`${{ steps.set-branch-outputs.outputs.branch_name }}\` |
-          | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
+          | **Release Branch** | [\`${{ steps.set-branch-outputs.outputs.branch_name }}\`](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.set-branch-outputs.outputs.branch_name }}) |
+          | **Release Notes** | [View Release](${{ steps.create-release.outputs.html_url }}) |
           
           ## Next Steps
           
