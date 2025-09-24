@@ -151,8 +151,3 @@ jobs:
           
           [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select version: **${{ steps.determine-version.outputs.version }}**
           EOF
-          - Create patch releases from this branch
-          
-          ---
-          *Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
-          EOF
