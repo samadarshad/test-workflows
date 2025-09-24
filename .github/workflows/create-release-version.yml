@@ -106,42 +106,38 @@ jobs:
       
       - name: Create release branch
         id: create-branch
+        uses: peterjgrainger/action-create-branch@v2.2.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          branch: 'refs/heads/release/${{ steps.determine-version.outputs.version }}'
+          sha: '${{ github.sha }}'
+      
+      - name: Set branch outputs
+        id: set-branch-outputs
         run: |
           VERSION="${{ steps.determine-version.outputs.version }}"
-          SOURCE_BRANCH="${{ github.ref_name }}"
           BRANCH_NAME="release/${VERSION}"
-          
-          # Check if branch already exists
-          if gh api repos/${{ github.repository }}/branches/$BRANCH_NAME --silent 2>/dev/null; then
-            echo "✅ Branch $BRANCH_NAME already exists"
-            echo "branch_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "🌿 Creating new branch $BRANCH_NAME from $SOURCE_BRANCH"
-            
-            # Get the SHA of the source branch
-            SOURCE_SHA=$(gh api repos/${{ github.repository }}/git/ref/heads/$SOURCE_BRANCH --jq .object.sha)
-            
-            # Create the new branch
-            gh api repos/${{ github.repository }}/git/refs \
-              --method POST \
-              --field ref="refs/heads/$BRANCH_NAME" \
-              --field sha="$SOURCE_SHA"
-            
-            echo "✅ Branch $BRANCH_NAME created successfully"
-            echo "branch_exists=false" >> $GITHUB_OUTPUT
-          fi
+          SOURCE_BRANCH="${{ github.ref_name }}"
+          BRANCH_CREATED="${{ steps.create-branch.outputs.created }}"
           
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "source_branch=$SOURCE_BRANCH" >> $GITHUB_OUTPUT
+          
+          if [ "$BRANCH_CREATED" = "true" ]; then
+            echo "🌿 Created new branch $BRANCH_NAME from $SOURCE_BRANCH"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Branch $BRANCH_NAME already exists"
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          fi
       
       - name: Create GitHub Release
         id: create-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH_NAME="${{ steps.create-branch.outputs.branch_name }}"
+          BRANCH_NAME="${{ steps.set-branch-outputs.outputs.branch_name }}"
           
           gh release create "${{ steps.determine-version.outputs.version }}" \
             --title "${{ steps.determine-version.outputs.version }}" \
@@ -160,10 +156,10 @@ jobs:
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version != '' && 'Manual' || 'Auto-increment' }} |
-          | **Release Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
+          | **Release Branch** | \`${{ steps.set-branch-outputs.outputs.branch_name }}\` |
           | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
           
           ## Next Steps
           
-          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select branch: **${{ steps.create-branch.outputs.branch_name }}**
+          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select branch: **${{ steps.set-branch-outputs.outputs.branch_name }}**
           EOF
