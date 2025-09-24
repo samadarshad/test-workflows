@@ -961,7 +961,7 @@ jobs:
           
           # Initialize message with title
           cat > slack_message.txt << EOF
-          📊 *Build Results for Release $VERSION*
+          📊 *Build Results for $VERSION*
           
           EOF
                    
@@ -1177,7 +1177,7 @@ jobs:
           # If message is short enough, send as single message
           if [ "$MESSAGE_LENGTH" -le 2800 ]; then
             echo "� Sending complete message in single notification"
-            send_slack_message "$MESSAGE_CONTENT" "🚀 Build Results for Release $VERSION"
+            send_slack_message "$MESSAGE_CONTENT" "🚀 Build Results for $VERSION"
           else
             echo "� Message too long ($MESSAGE_LENGTH chars) - splitting into multiple messages"
             
@@ -1185,9 +1185,9 @@ jobs:
             APPS='${{ needs.determine-build-parameters.outputs.apps }}'
             
             # Send header message first
-            HEADER_MESSAGE="🚀 *Build Results for Release $VERSION*"
+            HEADER_MESSAGE="🚀 *Build Results for $VERSION*"
             HEADER_CONTENT=$(echo "$HEADER_MESSAGE" | jq -Rs .)
-            send_slack_message "$HEADER_CONTENT" "🚀 Build Results for Release $VERSION"
+            send_slack_message "$HEADER_CONTENT" "🚀 Build Results for $VERSION"
             
             # Send each app as separate message
             echo "$APPS" | jq -r '.[]' | while read app; do
