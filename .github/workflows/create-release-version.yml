@@ -103,17 +103,30 @@ jobs:
       
       - name: Create release branch
         id: create-branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.determine-version.outputs.version }}"
           SOURCE_BRANCH="${{ github.ref_name }}"
           BRANCH_NAME="release/${VERSION}"
           
-          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+          # Check if branch already exists
+          if gh api repos/${{ github.repository }}/branches/$BRANCH_NAME --silent 2>/dev/null; then
+            echo "✅ Branch $BRANCH_NAME already exists"
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
-            git checkout "$SOURCE_BRANCH"
-            git checkout -b "$BRANCH_NAME"
-            git push origin "$BRANCH_NAME"
+            echo "🌿 Creating new branch $BRANCH_NAME from $SOURCE_BRANCH"
+            
+            # Get the SHA of the source branch
+            SOURCE_SHA=$(gh api repos/${{ github.repository }}/git/ref/heads/$SOURCE_BRANCH --jq .object.sha)
+            
+            # Create the new branch
+            gh api repos/${{ github.repository }}/git/refs \
+              --method POST \
+              --field ref="refs/heads/$BRANCH_NAME" \
+              --field sha="$SOURCE_SHA"
+            
+            echo "✅ Branch $BRANCH_NAME created successfully"
             echo "branch_exists=false" >> $GITHUB_OUTPUT
           fi
           
