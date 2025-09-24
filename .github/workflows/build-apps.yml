@@ -3,8 +3,10 @@
 # This workflow builds mobile apps using Bitrise for multiple apps, platforms, and environments.
 # 
 # Required Secrets:
-# - BITRISE_PROJECT_SLUG: Bitrise project identifier
 # - BITRISE_ACCESS_TOKEN: Bitrise API access token
+# 
+# Required Repository Variables:
+# - BITRISE_PROJECT_SLUG: Bitrise project identifier
 # - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
 #
 # Required Repository Variables (for app-specific connected app IDs):
@@ -288,19 +290,10 @@ jobs:
           # Escape for JSON
           MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
           
-          # Determine channel (use override if specified, otherwise webhook default)
-          CHANNEL_OVERRIDE=""
-          if [ -n "$SLACK_CHANNEL" ]; then
-            CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
-            echo "🎯 Overriding channel to: $SLACK_CHANNEL"
-          else
-            echo "📍 Using webhook default channel"
-          fi
-          
           # Create JSON payload
           PAYLOAD=$(cat << EOF
           {
-            "text": "🚀 Build Workflow Started - Release $VERSION"$CHANNEL_OVERRIDE,
+            "text": "🚀 Build Workflow Started - Release $VERSION",
             "blocks": [
               {
                 "type": "section",
@@ -330,8 +323,7 @@ jobs:
             echo "⚠️ Continuing with build process despite notification failure"
           fi
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
   
   build-apps:
     needs: [determine-build-parameters, slack-trigger-notification]
@@ -858,12 +850,7 @@ jobs:
             # Create base payload
             TEXT_FIELD="🚨 Build Failed - ${{ matrix.app }} ${{ matrix.platform }}/${{ matrix.environment }}"
             
-            # Add channel override if specified
-            if [ -n "$SLACK_CHANNEL" ]; then
-              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"channel\":\"$SLACK_CHANNEL\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
-            else
-              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
-            fi
+            PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
             
             curl -X POST -H 'Content-type: application/json' \
               --data "$PAYLOAD" \
@@ -872,8 +859,7 @@ jobs:
             echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping failure notification"
           fi
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
         continue-on-error: true
       
       - name: Report build status
@@ -1432,7 +1418,7 @@ jobs:
             fi
           fi
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
           SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
   
   cancel-bitrise-builds:
@@ -1619,6 +1605,6 @@ jobs:
             echo "⚠️ SLACK_WEBHOOK_URL not configured - skipping cancellation notification"
           fi
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
           SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
         continue-on-error: true
