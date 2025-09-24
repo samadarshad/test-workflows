@@ -1,21 +1,12 @@
 name: Create Release Version
 
-run-name: "Create Release: ${{ github.event.inputs.version_mode == 'manual' && github.event.inputs.manual_version || 'Auto-increment' }}"
+run-name: "Create Release: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Auto-increment' }}"
 
 on:
   workflow_dispatch:
     inputs:
-      version_mode:
-        description: 'Version mode'
-        required: true
-        type: choice
-        options:
-          - automatic
-          - manual
-        default: automatic
-      
-      manual_version:
-        description: 'Manual version override (e.g., 3.29.0 or 3.29.0-test)'
+      version:
+        description: 'Version (e.g., 3.29.0 or 3.29.0-test) - leave blank for auto-increment'
         required: false
         type: string
 
@@ -37,8 +28,8 @@ jobs:
       - name: Determine version
         id: determine-version
         run: |
-          if [ "${{ github.event.inputs.version_mode }}" == "manual" ]; then
-            INPUT_VERSION="${{ github.event.inputs.manual_version }}"
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            INPUT_VERSION="${{ github.event.inputs.version }}"
             INPUT_VERSION=${INPUT_VERSION#v}
             VERSION="v${INPUT_VERSION}"
             
@@ -46,8 +37,6 @@ jobs:
               echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix"
               exit 1
             fi
-            
-            LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
           else
             LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
             
@@ -154,7 +143,7 @@ jobs:
           | Field | Value |
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
-          | **Type** | ${{ github.event.inputs.version_mode }} |
+          | **Type** | ${{ github.event.inputs.version != '' && 'Manual' || 'Auto-increment' }} |
           | **Release Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
           | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
           
