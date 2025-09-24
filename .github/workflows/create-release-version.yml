@@ -23,7 +23,7 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for creating releases and tags
+      contents: write
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
       release_url: ${{ steps.create-release.outputs.html_url }}
@@ -32,177 +32,85 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for tags
+          fetch-depth: 0
       
       - name: Determine version
         id: determine-version
         run: |
           if [ "${{ github.event.inputs.version_mode }}" == "manual" ]; then
-            # Use manual version and automatically add 'v' prefix if not present
             INPUT_VERSION="${{ github.event.inputs.manual_version }}"
-            
-            # Remove 'v' prefix if user accidentally included it, then add it back
             INPUT_VERSION=${INPUT_VERSION#v}
             VERSION="v${INPUT_VERSION}"
             
-            # Validate format (now expecting the format without 'v' prefix in input)
             if ! echo "$INPUT_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+)*$' > /dev/null; then
-              echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix (e.g., 3.28.0 or 3.29.0-test)"
-              echo "Note: Do not include the 'v' prefix - it will be added automatically"
+              echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix"
               exit 1
             fi
             
-            echo "Using manual version: $VERSION (from input: $INPUT_VERSION)"
             LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
           else
-            # Get the latest tag that matches version pattern
             LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
             
             if [ -z "$LATEST_TAG" ]; then
-              # No previous tags found, start with v1.0.0
               VERSION="v1.0.0"
-              echo "No previous tags found. Starting with $VERSION"
             else
-              echo "Latest tag found: $LATEST_TAG"
-              
-              # Extract version numbers
               VERSION_WITHOUT_V=${LATEST_TAG#v}
               IFS='.' read -ra VERSION_PARTS <<< "$VERSION_WITHOUT_V"
               
               MAJOR=${VERSION_PARTS[0]}
               MINOR=${VERSION_PARTS[1]}
-              PATCH=${VERSION_PARTS[2]}
-              
-              # Increment minor version and reset patch
               NEW_MINOR=$((MINOR + 1))
               VERSION="v${MAJOR}.${NEW_MINOR}.0"
-              
-              echo "Incremented version from $LATEST_TAG to $VERSION"
             fi
           fi
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "✅ Version set: $VERSION"
-          
-          # Display prominent banner with actual version
-          echo ""
-          echo "╔════════════════════════════════════════╗"
-          echo "║     RELEASE VERSION: $VERSION         "
-          echo "╚════════════════════════════════════════╝"
-          echo ""
       
       - name: Generate release notes
         id: release-notes
         run: |
           VERSION="${{ steps.determine-version.outputs.version }}"
-          
-          # Get the previous tag for comparison
           PREVIOUS_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 2 | head -n 1)
           
-          # If no previous tag, use the initial commit
           if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" == "$VERSION" ]; then
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
-            echo "No previous tag found, using initial commit"
-          else
-            echo "Previous tag: $PREVIOUS_TAG"
           fi
           
-          # Create release notes
           cat > release_notes.md << EOF
           ## 🔧 Release Information
           - **Version**: $VERSION
-          - **Version Mode**: ${{ github.event.inputs.version_mode }}
           - **Created by**: @${{ github.actor }}
           - **Release Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          - **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ## 🎯 What's Changed
           EOF
           
-          # Get commit count
           COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..HEAD)
           echo "**${COMMIT_COUNT} commits** since ${PREVIOUS_TAG}" >> release_notes.md
           echo "" >> release_notes.md
           
-          # Group commits by type (feat, fix, chore, etc.)
           echo "### ✨ Features" >> release_notes.md
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h) - %an" --grep="^feat" >> release_notes.md || echo "* No new features" >> release_notes.md
-          echo "" >> release_notes.md
+          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h)" --grep="^feat" >> release_notes.md || echo "* No new features" >> release_notes.md
           echo "" >> release_notes.md
           
           echo "### 🐛 Bug Fixes" >> release_notes.md
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h) - %an" --grep="^fix" >> release_notes.md || echo "* No bug fixes" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "" >> release_notes.md
-          
-          echo "### 📚 Documentation" >> release_notes.md
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h) - %an" --grep="^docs" >> release_notes.md || echo "* No documentation updates" >> release_notes.md
-          echo "" >> release_notes.md
+          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h)" --grep="^fix" >> release_notes.md || echo "* No bug fixes" >> release_notes.md
           echo "" >> release_notes.md
           
           echo "### 🔧 Other Changes" >> release_notes.md
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h) - %an" --grep -v "^feat" --grep -v "^fix" --grep -v "^docs" | head -10 >> release_notes.md || echo "* No other changes" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "" >> release_notes.md
-          
-          # Add contributors section
-          cat >> release_notes.md << EOF
-          
-          ## 👥 Contributors
-          EOF
-          
-          # Get unique contributors (using %aN for author name without email)
-          echo "Thanks to all contributors to this release:" >> release_notes.md
-          echo "" >> release_notes.md
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%aN" | sort -u | while read author; do
-            echo "* $author" >> release_notes.md
-          done
-          echo "" >> release_notes.md
+          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h)" --grep -v "^feat" --grep -v "^fix" | head -10 >> release_notes.md || echo "* No other changes" >> release_notes.md
           echo "" >> release_notes.md
           
-          # Add full changelog
-          cat >> release_notes.md << EOF
-          
-          ## 📋 Full Changelog
-          
-          <details>
-          <summary>Click to expand</summary>
-          
-          \`\`\`
-          EOF
-          
-          # Add condensed commit list
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%h - %s (%an, %ar)" >> release_notes.md
-          
-          cat >> release_notes.md << 'EOF'
-          
-          ```
-          
-          </details>
-          
-          ## 🔗 Compare
-          
-          EOF
-          
-          # Add the compare link
           echo "**Full Changelog**: [$PREVIOUS_TAG...$VERSION](${{ github.server_url }}/${{ github.repository }}/compare/${PREVIOUS_TAG}...${VERSION})" >> release_notes.md
           echo "" >> release_notes.md
           
           cat >> release_notes.md << EOF
-          
           ## 📦 Build Status
-          
           ⏳ **Apps not yet built** - Use the [Build Apps workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) to build apps for this release.
           
+          ---
+          *This release was automatically generated by GitHub Actions*
           EOF
-          
-          echo "---" >> release_notes.md
-          echo "*This release was automatically generated by GitHub Actions*" >> release_notes.md
-          
-          # Output the release notes for debugging
-          echo "Release notes generated:"
-          echo "========================"
-          cat release_notes.md
       
       - name: Create release branch
         id: create-branch
@@ -211,21 +119,12 @@ jobs:
           SOURCE_BRANCH="${{ github.ref_name }}"
           BRANCH_NAME="release/${VERSION}"
           
-          echo "📌 Creating release branch: $BRANCH_NAME from $SOURCE_BRANCH"
-          
-          # Check if branch already exists
           if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
-            echo "⚠️ Branch $BRANCH_NAME already exists"
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
-            # Ensure we're on the correct source branch
             git checkout "$SOURCE_BRANCH"
-            
-            # Create and push the new branch
             git checkout -b "$BRANCH_NAME"
             git push origin "$BRANCH_NAME"
-            
-            echo "✅ Branch $BRANCH_NAME created and pushed from $SOURCE_BRANCH"
             echo "branch_exists=false" >> $GITHUB_OUTPUT
           fi
           
@@ -239,55 +138,30 @@ jobs:
         run: |
           BRANCH_NAME="${{ steps.create-branch.outputs.branch_name }}"
           
-          # Using GitHub CLI which is pre-installed in GitHub Actions
-          # Create release pointing to the release branch
           gh release create "${{ steps.determine-version.outputs.version }}" \
             --title "${{ steps.determine-version.outputs.version }}" \
             --notes-file release_notes.md \
             --target "$BRANCH_NAME"
           
-          # Get the release URL
           RELEASE_URL=$(gh release view "${{ steps.determine-version.outputs.version }}" --json url -q .url)
           echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
-          
-          echo "✅ Release created: $RELEASE_URL"
-          echo "✅ Release tagged on branch: $BRANCH_NAME"
       
       - name: Create job summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # ✅ Release Created Successfully!
-          
-          ## 📋 Release Details
+          # Release Created: ${{ steps.determine-version.outputs.version }}
           
           | Field | Value |
           |-------|-------|
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version_mode }} |
-          | **Source Branch** | \`${{ steps.create-branch.outputs.source_branch }}\` |
           | **Release Branch** | \`${{ steps.create-branch.outputs.branch_name }}\` |
-          | **Branch Status** | $([ "${{ steps.create-branch.outputs.branch_exists }}" == "true" ] && echo "⚠️ Already existed" || echo "✅ Newly created") |
-          | **Tag** | \`${{ steps.determine-version.outputs.version }}\` |
-          | **Commit** | \`${{ github.sha }}\` |
           | **Release URL** | [View Release](${{ steps.create-release.outputs.html_url }}) |
-          | **Created by** | @${{ github.actor }} |
-          | **Workflow Run** | #${{ github.run_number }} |
           
-          ## 🚀 Next Steps
+          ## Next Steps
           
-          To build apps for this release:
-          1. Go to [Build Apps workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml)
-          2. Click "Run workflow"
-          3. Select version: **${{ steps.determine-version.outputs.version }}**
-          4. Choose which apps to build
-          
-          ## 📌 Release Branch
-          
-          A release branch has been created: \`${{ steps.create-branch.outputs.branch_name }}\`
-          
-          You can:
-          - Cherry-pick fixes to this branch for hotfixes
-          - Use this branch for production deployments
+          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select version: **${{ steps.determine-version.outputs.version }}**
+          EOF
           - Create patch releases from this branch
           
           ---
