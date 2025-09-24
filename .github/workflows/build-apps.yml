@@ -953,7 +953,8 @@ jobs:
             📦 *Release:* $VERSION
             📱 *App:* ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
             ❌ *Status:* $FINAL_STATUS (Build #$BUILD_NUMBER)
-            🔗 *Debug:* <$BITRISE_URL|View Bitrise Build>"
+            🔗 *Debug:* <$BITRISE_URL|View Bitrise Build>
+            🏃 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
             
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
