@@ -133,7 +133,7 @@ jobs:
           
           | Field | Value |
           |-------|-------|
-          | **Build Branch** | \`$BRANCH_NAME\` |
+          | **Build Branch** | \`$VERSION\` |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered By** | @${{ github.actor }} |
           | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
@@ -157,7 +157,7 @@ jobs:
           
           ## 🔗 Links
           
-          - [🌿 Branch $BRANCH_NAME](https://github.com/${{ github.repository }}/tree/$BRANCH_NAME)
+          - [🌿 Branch $VERSION](https://github.com/${{ github.repository }}/tree/$VERSION)
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [📂 Repository](https://github.com/${{ github.repository }})
           
