@@ -17,7 +17,7 @@ jobs:
       contents: write
     outputs:
       version: ${{ steps.determine-version.outputs.version }}
-      release_url: ${{ steps.create-release.outputs.html_url }}
+      release_url: ${{ steps.create-release.outputs.url }}
     
     steps:
       - name: Checkout repository
@@ -134,18 +134,14 @@ jobs:
       
       - name: Create GitHub Release
         id: create-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BRANCH_NAME="${{ steps.set-branch-outputs.outputs.branch_name }}"
-          
-          gh release create "${{ steps.determine-version.outputs.version }}" \
-            --title "${{ steps.determine-version.outputs.version }}" \
-            --notes-file release_notes.md \
-            --target "$BRANCH_NAME"
-          
-          RELEASE_URL=$(gh release view "${{ steps.determine-version.outputs.version }}" --json url -q .url)
-          echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.determine-version.outputs.version }}
+          name: ${{ steps.determine-version.outputs.version }}
+          body_path: release_notes.md
+          target_commitish: ${{ steps.set-branch-outputs.outputs.branch_name }}
+          draft: false
+          prerelease: false
       
       - name: Create job summary
         run: |
@@ -157,7 +153,7 @@ jobs:
           | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
           | **Type** | ${{ github.event.inputs.version != '' && 'Manual' || 'Auto-increment' }} |
           | **Release Branch** | [\`${{ steps.set-branch-outputs.outputs.branch_name }}\`](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.set-branch-outputs.outputs.branch_name }}) |
-          | **Release Notes** | [View Release](${{ steps.create-release.outputs.html_url }}) |
+          | **Release Notes** | [View Release](${{ steps.create-release.outputs.url }}) |
           
           ## Next Steps
           
