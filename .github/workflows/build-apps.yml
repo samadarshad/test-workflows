@@ -1315,15 +1315,6 @@ jobs:
           MESSAGE_LENGTH=$(echo "$MESSAGE_CONTENT" | jq -r length)
           echo "📏 Message length: $MESSAGE_LENGTH characters"
           
-          # Determine channel (use override if specified, otherwise webhook default)
-          CHANNEL_OVERRIDE=""
-          if [ -n "$SLACK_CHANNEL" ]; then
-            CHANNEL_OVERRIDE=",\"channel\": \"$SLACK_CHANNEL\""
-            echo "🎯 Overriding channel to: $SLACK_CHANNEL"
-          else
-            echo "📍 Using webhook default channel"
-          fi
-          
           # If message is too long (over 2800 chars to leave buffer), send summary with link
           if [ "$MESSAGE_LENGTH" -gt 2800 ]; then
             echo "⚠️ Message too long ($MESSAGE_LENGTH chars) - sending summary with workflow link"
@@ -1349,7 +1340,7 @@ jobs:
           # Create JSON payload
           PAYLOAD=$(cat << EOF
           {
-            "text": "🚀 Build Results for Release $VERSION"$CHANNEL_OVERRIDE,
+            "text": "🚀 Build Results for Release $VERSION",
             "blocks": [
               {
                 "type": "section",
@@ -1390,7 +1381,7 @@ jobs:
             FALLBACK_CONTENT=$(echo "$FALLBACK_MESSAGE" | jq -Rs .)
             FALLBACK_PAYLOAD=$(cat << EOF
             {
-              "text": "🚀 Build Results for Release $VERSION"$CHANNEL_OVERRIDE,
+              "text": "🚀 Build Results for Release $VERSION",
               "blocks": [
                 {
                   "type": "section",
@@ -1419,7 +1410,6 @@ jobs:
           fi
         env:
           SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
   
   cancel-bitrise-builds:
     needs: [determine-build-parameters, build-apps]
@@ -1591,12 +1581,7 @@ jobs:
             # Create base payload
             TEXT_FIELD=":no_entry_sign: Build Workflow Cancelled - Release $VERSION"
             
-            # Add channel override if specified
-            if [ -n "$SLACK_CHANNEL" ]; then
-              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"channel\":\"$SLACK_CHANNEL\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
-            else
-              PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
-            fi
+            PAYLOAD="{\"text\":\"$TEXT_FIELD\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":$MESSAGE_CONTENT}}]}"
             
             curl -X POST -H 'Content-type: application/json' \
               --data "$PAYLOAD" \
@@ -1606,5 +1591,4 @@ jobs:
           fi
         env:
           SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
         continue-on-error: true
