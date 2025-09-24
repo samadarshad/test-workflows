@@ -297,7 +297,7 @@ jobs:
           fi
           
           # Create minimal one-line message
-          MESSAGE_TEXT="🚀 <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
+          MESSAGE_TEXT="🚀 Building <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
           
           # Escape for JSON
           MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
@@ -1685,26 +1685,21 @@ jobs:
             VERSION="${{ needs.determine-build-parameters.outputs.version }}"
             APPS='${{ needs.determine-build-parameters.outputs.apps }}'
             
-            # Calculate total apps for context
-            APP_COUNT=$(echo "$APPS" | jq -r '. | length' 2>/dev/null || echo "unknown")
-            CURRENT_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            # Determine app description for concise message
+            if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+              APP_DESCRIPTION="All apps"
+            else
+              APP_DESCRIPTION="${{ github.event.inputs.specific_app }}"
+            fi
             
-            # Create cancellation message
-            MESSAGE_TEXT="🚫 *Build Workflow Cancelled*
-            
-            📦 *Release Version:* $VERSION
-            👤 *Cancelled by:* @${{ github.actor }}
-            🕐 *Cancelled at:* $CURRENT_TIME
-            📱 *Apps affected:* $APP_COUNT apps
-            
-            ℹ️ *Status:* Workflow was cancelled - Bitrise builds cleanup attempted
-            🔗 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+            # Create minimal cancellation message
+            MESSAGE_TEXT=":no_entry_sign: Cancelled <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
             
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
             
             # Create base payload
-            TEXT_FIELD="🚫 Build Workflow Cancelled - Release $VERSION"
+            TEXT_FIELD=":no_entry_sign: Build Workflow Cancelled - Release $VERSION"
             
             # Add channel override if specified
             if [ -n "$SLACK_CHANNEL" ]; then
