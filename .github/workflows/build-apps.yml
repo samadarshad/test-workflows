@@ -22,16 +22,11 @@
 
 name: Build Apps
 
-run-name: "Build Apps: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Latest Release' }} - ${{ github.event.inputs.app_selection }}"
+run-name: "Build Apps: ${{ github.ref_name }} - ${{ github.event.inputs.app_selection }}"
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version (e.g., v3.29.0 or v3.29.0-test) - leave blank for most recently created release'
-        required: false
-        type: string
-      
       app_selection:
         description: 'Apps to build'
         required: true
@@ -50,9 +45,8 @@ jobs:
   determine-build-parameters:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.determine-version.outputs.version }}
+      branch_name: ${{ steps.determine-branch.outputs.branch_name }}
       apps: ${{ steps.determine-apps.outputs.apps }}
-      release_exists: ${{ steps.check-release.outputs.exists }}
     
     steps:
       - name: Checkout repository
@@ -60,84 +54,20 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Determine version to build
-        id: determine-version
+      - name: Determine branch to build
+        id: determine-branch
         run: |
-          if [ -z "${{ github.event.inputs.version }}" ]; then
-            # Get the latest release tag
-            VERSION=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
-            
-            if [ -z "$VERSION" ]; then
-              echo "Error: No releases found. Please create a release first using the 'Create Release Version' workflow."
-              exit 1
-            fi
-            
-            echo "Using latest release: $VERSION"
-          else
-            # Use specified version - add 'v' prefix if not present
-            VERSION="${{ github.event.inputs.version }}"
-            if [[ ! "$VERSION" =~ ^v ]]; then
-              VERSION="v$VERSION"
-            fi
-            
-            # Validate format
-            if ! echo "$VERSION" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)*$' > /dev/null; then
-              echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix (e.g., 3.28.0 or 3.29.0-abc)"
-              exit 1
-            fi
-            
-            echo "Using specified version: $VERSION"
-          fi
+          CURRENT_BRANCH="${{ github.ref_name }}"
           
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using branch: $CURRENT_BRANCH"
+          echo "branch_name=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
           
-          # Display version banner
+          # Display branch banner
           echo ""
           echo "╔════════════════════════════════════════╗"
-          echo "║     BUILD VERSION: $VERSION           "
+          echo "║     BUILD BRANCH: $CURRENT_BRANCH           "
           echo "╚════════════════════════════════════════╝"
           echo ""
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Check if release exists
-        id: check-release
-        run: |
-          VERSION="${{ steps.determine-version.outputs.version }}"
-          
-          # Check if the release exists
-          if gh release view "$VERSION" > /dev/null 2>&1; then
-            echo "✅ Release $VERSION exists"
-            echo "exists=true" >> $GITHUB_OUTPUT
-            
-            # Get release URL for reference
-            RELEASE_URL=$(gh release view "$VERSION" --json url -q .url)
-            echo "Release URL: $RELEASE_URL"
-          else
-            echo "❌ Error: Release $VERSION does not exist"
-            echo "exists=false" >> $GITHUB_OUTPUT
-            
-            echo ""
-            echo "╔════════════════════════════════════════════════════════════════╗"
-            echo "║                        🛑 BUILD STOPPED                        ║"
-            echo "╚════════════════════════════════════════════════════════════════╝"
-            echo ""
-            echo "📦 Release $VERSION must be created before triggering builds."
-            echo ""
-            echo "👉 Please create the release first using one of these methods:"
-            echo ""
-            echo "🔗 OPTION 1: Use the Create Release Workflow"
-            echo "   https://github.com/${{ github.repository }}/actions/workflows/create-release-version.yml"
-            echo ""
-            echo "🔗 OPTION 2: Create release manually"
-            echo "   https://github.com/${{ github.repository }}/releases/new?tag=$VERSION"
-            echo ""
-            echo "💡 After creating the release, you can re-run this workflow."
-            echo ""
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Determine apps to build
         id: determine-apps
@@ -250,7 +180,7 @@ jobs:
           EOF
   
   slack-trigger-notification:
-    needs: determine-build-parameters
+        needs: determine-build-parameters
     runs-on: ubuntu-latest
     if: always()
     
@@ -348,7 +278,7 @@ jobs:
           WORKFLOW_NAME="${APP_NAME_CLEAN}-${{ matrix.platform }}-${{ matrix.environment }}"
           
           # Release branch name
-          BRANCH_NAME="release/${{ needs.determine-build-parameters.outputs.version }}"
+          BRANCH_NAME="${{ needs.determine-build-parameters.outputs.branch_name }}"
           
           echo "app_name_clean=$APP_NAME_CLEAN" >> $GITHUB_OUTPUT
           echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
@@ -360,7 +290,7 @@ jobs:
           echo "  Environment: ${{ matrix.environment }}"
           echo "  Workflow: $WORKFLOW_NAME"
           echo "  Branch: $BRANCH_NAME"
-          echo "  Version: ${{ needs.determine-build-parameters.outputs.version }}"
+          echo "  Branch: ${{ needs.determine-build-parameters.outputs.branch_name }}"
       
       - name: Trigger Bitrise build
         id: trigger-bitrise
@@ -370,7 +300,7 @@ jobs:
         run: |
           WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
           BRANCH_NAME="${{ steps.build-config.outputs.branch_name }}"
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           
           echo "🚀 Triggering Bitrise build for $WORKFLOW_NAME"
           
@@ -387,8 +317,8 @@ jobs:
                 \"workflow_id\": \"${WORKFLOW_NAME}\",
                 \"environments\": [
                   {
-                    \"mapped_to\": \"RELEASE_VERSION\",
-                    \"value\": \"${VERSION}\",
+                    \"mapped_to\": \"BUILD_BRANCH\",
+                    \"value\": \"${BRANCH_NAME}\",
                     \"is_expand\": true
                   },
                   {
@@ -397,7 +327,7 @@ jobs:
                     \"is_expand\": true
                   }
                 ],
-                \"commit_message\": \"Build ${VERSION} - ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }})\"
+                \"commit_message\": \"Build from branch ${BRANCH_NAME} - ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }})\"
               }
             }")
           
