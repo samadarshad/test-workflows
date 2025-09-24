@@ -388,101 +388,73 @@ jobs:
       
       - name: Wait for Bitrise build completion
         id: wait-for-completion
+        uses: eball/poll-check-endpoint@v0.1.0
+        with:
+          url: 'https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${{ steps.trigger-bitrise.outputs.build_slug }}'
+          method: GET
+          customHeaders: '{"Authorization": "token ${{ secrets.BITRISE_ACCESS_TOKEN }}"}'
+          expectStatus: 200
+          expectBodyRegex: '"status_text":\s*"(success)"'
+          failedBodyRegex: '"status_text":\s*"(error|aborted)"'
+          timeout: 3600000  # 1 hour in milliseconds
+          interval: 30000   # 30 seconds in milliseconds
+        continue-on-error: true
+      
+      - name: Extract build completion status
+        id: extract-status
         run: |
+          # The poll action succeeded if the build completed successfully
+          # Failed if it matched failedBodyRegex (error/aborted)
+          # Timed out if it exceeded the timeout
+          
+          echo "⏳ Extracting final build status..."
+          
+          # Get the final build status from Bitrise API
           BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
-          MAX_WAIT_TIME=3600  # 1 hour maximum wait time
-          POLL_INTERVAL=30    # Check every 30 seconds
-          elapsed_time=0
           
-          echo "⏳ Waiting for Bitrise build to complete..."
-          echo "Build Slug: $BUILD_SLUG"
-          echo "Maximum wait time: ${MAX_WAIT_TIME} seconds"
-          echo "API URL: https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}"
+          STATUS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
+            "https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
           
-          while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
-            # Get build status with HTTP status code
-            HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
-              "https://api.bitrise.io/v0.1/apps/${{ vars.BITRISE_PROJECT_SLUG }}/builds/${BUILD_SLUG}")
-            
-            # Extract HTTP status and body
-            HTTP_STATUS=$(echo "$HTTP_RESPONSE" | grep -o 'HTTPSTATUS:[0-9]*' | cut -d: -f2)
-            STATUS_RESPONSE=$(echo "$HTTP_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
-            
-            echo "HTTP Status: $HTTP_STATUS"
-            
-            # Check HTTP status first
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "⚠️ HTTP $HTTP_STATUS from Bitrise API (elapsed: ${elapsed_time}s)"
-              echo "Response body: $STATUS_RESPONSE"
-              
-              if [ "$HTTP_STATUS" = "404" ]; then
-                echo "❌ Build not found (404) - build slug may be invalid"
-                echo "final_status=not_found" >> $GITHUB_OUTPUT
-                echo "build_completed=false" >> $GITHUB_OUTPUT
-                exit 1
-              elif [ "$HTTP_STATUS" = "401" ]; then
-                echo "❌ Unauthorized (401) - check BITRISE_ACCESS_TOKEN"
-                echo "final_status=unauthorized" >> $GITHUB_OUTPUT
-                echo "build_completed=false" >> $GITHUB_OUTPUT
-                exit 1
-              fi
-              
-              # For other HTTP errors, wait and retry
-              sleep $POLL_INTERVAL
-              elapsed_time=$((elapsed_time + POLL_INTERVAL))
-              continue
-            fi
-            
-            # Check if response is valid JSON
-            if ! echo "$STATUS_RESPONSE" | jq empty 2>/dev/null; then
-              echo "⚠️ Invalid JSON response from Bitrise API (elapsed: ${elapsed_time}s)"
-              echo "Response: $STATUS_RESPONSE"
-              
-              # Wait and retry for invalid JSON
-              sleep $POLL_INTERVAL
-              elapsed_time=$((elapsed_time + POLL_INTERVAL))
-              continue
-            fi
-            
+          if echo "$STATUS_RESPONSE" | jq empty 2>/dev/null; then
             BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
             FINISHED_AT=$(echo "$STATUS_RESPONSE" | jq -r '.data.finished_at // null')
             
-            echo "Build Status: $BUILD_STATUS (elapsed: ${elapsed_time}s)"
+            echo "Final Build Status: $BUILD_STATUS"
+            echo "Finished At: $FINISHED_AT"
             
-            # Check if build is finished (success or failed)
-            if [ "$BUILD_STATUS" = "success" ] || [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ] || [ "$FINISHED_AT" != "null" ]; then
-              echo "✅ Build finished with status: $BUILD_STATUS"
-              
-              # Debug: Show full build completion response (only for Android)
-              if [ "${{ matrix.platform }}" = "android" ]; then
-                echo "🔍 Full build completion response:"
-                echo "$STATUS_RESPONSE" | jq .data
-              fi
-              
-              echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
-              echo "build_completed=true" >> $GITHUB_OUTPUT
-              
-              # Note build failure but don't exit - let summary steps run
-              if [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ]; then
-                echo "❌ Build failed with status: $BUILD_STATUS"
-                echo "build_failed=true" >> $GITHUB_OUTPUT
-              else
-                echo "build_failed=false" >> $GITHUB_OUTPUT
-              fi
-              
-              break
+            # Debug: Show full build completion response (only for Android)
+            if [ "${{ matrix.platform }}" = "android" ]; then
+              echo "🔍 Full build completion response:"
+              echo "$STATUS_RESPONSE" | jq .data
             fi
             
-            # Wait before next poll
-            sleep $POLL_INTERVAL
-            elapsed_time=$((elapsed_time + POLL_INTERVAL))
-          done
-          
-          # Check if we timed out
-          if [ $elapsed_time -ge $MAX_WAIT_TIME ]; then
-            echo "⚠️ Build did not complete within ${MAX_WAIT_TIME} seconds"
-            echo "final_status=timeout" >> $GITHUB_OUTPUT
+            # Set outputs based on the polling result and final status
+            if [ "${{ steps.wait-for-completion.outcome }}" = "success" ]; then
+              echo "✅ Build completed successfully"
+              echo "final_status=success" >> $GITHUB_OUTPUT
+              echo "build_completed=true" >> $GITHUB_OUTPUT
+              echo "build_failed=false" >> $GITHUB_OUTPUT
+            elif [ "$BUILD_STATUS" = "error" ] || [ "$BUILD_STATUS" = "aborted" ]; then
+              echo "❌ Build failed with status: $BUILD_STATUS"
+              echo "final_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+              echo "build_completed=true" >> $GITHUB_OUTPUT
+              echo "build_failed=true" >> $GITHUB_OUTPUT
+            elif [ "${{ steps.wait-for-completion.outcome }}" = "failure" ]; then
+              echo "⏱️ Build polling timed out or failed"
+              echo "final_status=timeout" >> $GITHUB_OUTPUT
+              echo "build_completed=false" >> $GITHUB_OUTPUT
+              echo "build_failed=false" >> $GITHUB_OUTPUT
+            else
+              echo "❓ Unknown polling outcome: ${{ steps.wait-for-completion.outcome }}"
+              echo "final_status=unknown" >> $GITHUB_OUTPUT
+              echo "build_completed=false" >> $GITHUB_OUTPUT
+              echo "build_failed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Failed to get final build status from Bitrise API"
+            echo "final_status=api_error" >> $GITHUB_OUTPUT
             echo "build_completed=false" >> $GITHUB_OUTPUT
+            echo "build_failed=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Resolve connected app ID for Android
@@ -534,7 +506,7 @@ jobs:
       
       - name: Get public install page URL
         id: get-install-url
-        if: matrix.platform == 'android' && steps.wait-for-completion.outputs.build_completed == 'true' && steps.wait-for-completion.outputs.final_status == 'success'
+        if: matrix.platform == 'android' && steps.extract-status.outputs.build_completed == 'true' && steps.extract-status.outputs.final_status == 'success'
         run: |
           echo "🤖 Android build successful - using Release Management API to get public install page URL..."
           
@@ -616,8 +588,8 @@ jobs:
         if: always()
         run: |
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
-          BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
-          FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
+          BUILD_COMPLETED="${{ steps.extract-status.outputs.build_completed }}"
+          FINAL_STATUS="${{ steps.extract-status.outputs.final_status }}"
           FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
           
           cat >> $GITHUB_STEP_SUMMARY << EOF
@@ -709,8 +681,8 @@ jobs:
         if: always()
         run: |
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
-          BUILD_COMPLETED="${{ steps.wait-for-completion.outputs.build_completed }}"
-          FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
+          BUILD_COMPLETED="${{ steps.extract-status.outputs.build_completed }}"
+          FINAL_STATUS="${{ steps.extract-status.outputs.final_status }}"
           FINAL_INSTALL_URL="${{ steps.get-install-url.outputs.install_url }}"
           
           # Handle cases where build wasn't triggered or completed
@@ -749,13 +721,13 @@ jobs:
           retention-days: 7
       
       - name: Send immediate failure notification
-        if: steps.wait-for-completion.outputs.build_failed == 'true'
+        if: steps.extract-status.outputs.build_failed == 'true'
         run: |
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             echo "🚨 Sending immediate failure notification..."
             
             VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
-            FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
+            FINAL_STATUS="${{ steps.extract-status.outputs.final_status }}"
             BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
             BITRISE_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
             
@@ -781,9 +753,9 @@ jobs:
         continue-on-error: true
       
       - name: Report build status
-        if: steps.wait-for-completion.outputs.build_failed == 'true'
+        if: steps.extract-status.outputs.build_failed == 'true'
         run: |
-          echo "❌ Build failed with status: ${{ steps.wait-for-completion.outputs.final_status }}"
+          echo "❌ Build failed with status: ${{ steps.extract-status.outputs.final_status }}"
           echo "🔗 Build details: ${{ steps.trigger-bitrise.outputs.build_url }}"
           echo "💡 This job will fail so you can use 'Re-run failed jobs' to retry just the failed builds"
           exit 1
