@@ -1336,7 +1336,7 @@ jobs:
           fi
           
           # Create JSON payload
-          PAYLOAD=$(cat << EOF
+          PAYLOAD=$(cat <<EOF
           {
             "text": "🚀 Build Results for Release $VERSION",
             "blocks": [
@@ -1377,7 +1377,7 @@ jobs:
             👤 *Triggered by:* @${{ github.actor }}"
             
             FALLBACK_CONTENT=$(echo "$FALLBACK_MESSAGE" | jq -Rs .)
-            FALLBACK_PAYLOAD=$(cat << EOF
+            FALLBACK_PAYLOAD=$(cat <<EOF
             {
               "text": "🚀 Build Results for Release $VERSION",
               "blocks": [
