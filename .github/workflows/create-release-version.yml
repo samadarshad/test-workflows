@@ -33,8 +33,11 @@ jobs:
             INPUT_VERSION=${INPUT_VERSION#v}
             VERSION="v${INPUT_VERSION}"
             
-            if ! echo "$INPUT_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+)*$' > /dev/null; then
+            # Basic validation: check if version contains dots and numbers
+            if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
               echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix"
+              echo "Examples: 3.29.0, 3.29.0-test, 3.29.0-rc1"
+              echo "Received: $INPUT_VERSION"
               exit 1
             fi
           else
