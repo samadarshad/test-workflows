@@ -162,5 +162,5 @@ jobs:
           
           ## Next Steps
           
-          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select version: **${{ steps.determine-version.outputs.version }}**
+          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select branch: **${{ steps.create-branch.outputs.branch_name }}**
           EOF
