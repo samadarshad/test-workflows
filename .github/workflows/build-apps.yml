@@ -835,14 +835,8 @@ jobs:
             BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
             BITRISE_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
             
-            # Create brief failure message
-            MESSAGE_TEXT="🚨 *Build Failed*
-            
-            📦 *Release:* $VERSION
-            📱 *App:* ${{ matrix.app }} - ${{ matrix.platform }}/${{ matrix.environment }}
-            ❌ *Status:* $FINAL_STATUS (Build #$BUILD_NUMBER)
-            🔗 *Debug:* <$BITRISE_URL|View Bitrise Build>
-            🏃 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+            # Create concise failure message similar to initiation/cancellation messages
+            MESSAGE_TEXT="🚨 Failed ($FINAL_STATUS) <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }}) → <$BITRISE_URL|Build #$BUILD_NUMBER> → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
             
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
