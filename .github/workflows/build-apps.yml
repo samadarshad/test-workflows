@@ -1271,34 +1271,15 @@ jobs:
       
       - name: 📋 Copy Slack Message to Summary
         run: |
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
-          
           # Read the Slack message and convert to markdown format
           SLACK_MESSAGE=$(cat slack_message.txt)
           
           # Convert Slack links <URL|text> to markdown [text](URL)
           MARKDOWN_MESSAGE=$(echo "$SLACK_MESSAGE" | sed -E 's/<([^|]+)\|([^>]+)>/[\2](\1)/g')
           
-          # Add message to GitHub Step Summary with markdown formatting
+          # Add only the message content to GitHub Step Summary
           cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 💬 Slack Message Content (Markdown Format)
-          
-          > **📋 Copy & Paste Ready:** Message formatted with markdown links for GitHub
-          
-          ## 🚀 Build Results for Release $VERSION
-          
           $MARKDOWN_MESSAGE
-          
-          ## 📱 Quick Copy Options
-          
-          **For GitHub/Markdown:**
-          1. Copy the message content above
-          2. Links are already in markdown format
-          3. Will render properly in GitHub issues, PRs, etc.
-          
-          ---
-          
-          **💡 Tip:** The message shows individual build numbers and install links for easy access.
           EOF
       
       - name: Send Slack notification
