@@ -84,8 +84,7 @@ jobs:
       
       - name: 📋 Build Summary
         run: |
-          VERSION="${{ steps.determine-version.outputs.version }}"
-          RELEASE_EXISTS="${{ steps.check-release.outputs.exists }}"
+          VERSION="${{ steps.determine-branch.outputs.branch_name }}"
           APPS='${{ steps.determine-apps.outputs.apps }}'
           
           echo ""
