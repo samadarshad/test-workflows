@@ -187,7 +187,7 @@ jobs:
             exit 0
           fi
           
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
           echo "📤 Sending initial Slack notification for build trigger..."
@@ -755,7 +755,7 @@ jobs:
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             echo "🚨 Sending immediate failure notification..."
             
-            VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+            VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
             FINAL_STATUS="${{ steps.wait-for-completion.outputs.final_status }}"
             BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
             BITRISE_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
@@ -802,7 +802,7 @@ jobs:
       
       - name: Update release with build status
         run: |
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
           echo "📝 Updating release $VERSION with build information"
@@ -875,7 +875,7 @@ jobs:
       
       - name: Create job summary
         run: |
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
           cat >> $GITHUB_STEP_SUMMARY << EOF
@@ -1027,7 +1027,7 @@ jobs:
       - name: Prepare Slack message
         id: slack-message
         run: |
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           
           echo "📱 Preparing Slack message for release $VERSION"
           
@@ -1202,7 +1202,7 @@ jobs:
           
           echo "📤 Sending Slack notification..."
           
-          VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+          VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           
           # Read the message and check size
           MESSAGE_CONTENT=$(cat slack_message.txt | jq -Rs .)
@@ -1412,7 +1412,7 @@ jobs:
           | Field | Value |
           |-------|-------|
           | **Cancelled At** | $CURRENT_TIME |
-          | **Version** | \`${{ needs.determine-build-parameters.outputs.version }}\` |
+          | **Build Branch** | \`${{ needs.determine-build-parameters.outputs.branch_name }}\` |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
           
@@ -1440,7 +1440,7 @@ jobs:
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             echo "📤 Sending workflow cancellation notification to Slack..."
             
-            VERSION="${{ needs.determine-build-parameters.outputs.version }}"
+            VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
             APPS='${{ needs.determine-build-parameters.outputs.apps }}'
             
             # Determine app description for concise message
