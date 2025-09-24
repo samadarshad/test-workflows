@@ -242,7 +242,7 @@ jobs:
           
           1. **Individual Build Steps**: Each build will show its Bitrise link in its own step summary below
           2. **Consolidated Links**: Check the "Complete Bitrise Dashboard" job for all links in one place (appears after all builds are complete)
-          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/dashboard) to see all builds
+          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }}) to see all builds
           
           ---
           EOF
@@ -408,7 +408,7 @@ jobs:
           
           ## � Quick Actions
           
-          - [📱 Bitrise Dashboard](https://app.bitrise.io/dashboard) - View all your builds in one place
+          - [📱 Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }}) - View all your builds in one place
           - [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
@@ -1183,7 +1183,7 @@ jobs:
           - [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
           EOF
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
+          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }})
           
           ## ⚠️ Important Notes
           
@@ -1656,7 +1656,7 @@ jobs:
           ## 🔗 Links
           
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Bitrise Dashboard](https://app.bitrise.io/dashboard)
+          - [Bitrise Dashboard](https://app.bitrise.io/app/${{ secrets.BITRISE_PROJECT_SLUG }})
           
           ---
           *Cancellation processed at $CURRENT_TIME*
