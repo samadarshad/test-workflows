@@ -15,7 +15,7 @@ on:
         default: automatic
       
       manual_version:
-        description: 'Manual version override (e.g., v3.29.0) - only used if version_mode is "manual"'
+        description: 'Manual version override (e.g., 3.29.0 or 3.29.0-test) - "v" prefix will be added automatically'
         required: false
         type: string
 
@@ -38,16 +38,21 @@ jobs:
         id: determine-version
         run: |
           if [ "${{ github.event.inputs.version_mode }}" == "manual" ]; then
-            # Use manual version
-            VERSION="${{ github.event.inputs.manual_version }}"
+            # Use manual version and automatically add 'v' prefix if not present
+            INPUT_VERSION="${{ github.event.inputs.manual_version }}"
             
-            # Validate format
-            if ! echo "$VERSION" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)*$' > /dev/null; then
-              echo "Error: Invalid version format. Expected format: vX.Y.Z or vX.Y.Z-suffix (e.g., v3.28.0 or v3.29.0-abc)"
+            # Remove 'v' prefix if user accidentally included it, then add it back
+            INPUT_VERSION=${INPUT_VERSION#v}
+            VERSION="v${INPUT_VERSION}"
+            
+            # Validate format (now expecting the format without 'v' prefix in input)
+            if ! echo "$INPUT_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+)*$' > /dev/null; then
+              echo "Error: Invalid version format. Expected format: X.Y.Z or X.Y.Z-suffix (e.g., 3.28.0 or 3.29.0-test)"
+              echo "Note: Do not include the 'v' prefix - it will be added automatically"
               exit 1
             fi
             
-            echo "Using manual version: $VERSION"
+            echo "Using manual version: $VERSION (from input: $INPUT_VERSION)"
             LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
           else
             # Get the latest tag that matches version pattern
