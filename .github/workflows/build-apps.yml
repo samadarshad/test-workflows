@@ -289,24 +289,15 @@ jobs:
           APP_COUNT=$(echo "$APPS" | jq -r '. | length')
           TOTAL_BUILDS=$((APP_COUNT * 4))
           
-          # Create message content
-          MESSAGE_TEXT="🚀 *Build Workflow Started*
+          # Determine app description for concise message
+          if [ "${{ github.event.inputs.app_selection }}" == "all" ]; then
+            APP_DESCRIPTION="All apps"
+          else
+            APP_DESCRIPTION="${{ github.event.inputs.specific_app }}"
+          fi
           
-          📦 *Release Version:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
-           *Triggered by:* @${{ github.actor }}
-          🕐 *Started at:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
-          📱 *Apps to Build:* ($APP_COUNT apps, $TOTAL_BUILDS total builds)"
-          
-          echo "$APPS" | jq -r '.[]' | while read app; do
-            MESSAGE_TEXT="${MESSAGE_TEXT}
-          • $app (Android + iOS, Staging + Production)"
-          done
-          
-          MESSAGE_TEXT="${MESSAGE_TEXT}
-          
-          🔄 *Status:* Starting Bitrise builds...
-          🔗 *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+          # Create minimal one-line message
+          MESSAGE_TEXT="🚀 <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
           
           # Escape for JSON
           MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
