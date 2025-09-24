@@ -180,7 +180,7 @@ jobs:
           EOF
   
   slack-trigger-notification:
-        needs: determine-build-parameters
+    needs: determine-build-parameters
     runs-on: ubuntu-latest
     if: always()
     
