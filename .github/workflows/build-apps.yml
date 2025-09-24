@@ -116,7 +116,7 @@ jobs:
           echo "   • Total Builds: $TOTAL_BUILDS"
           echo ""
           echo "🔗 REFERENCE LINKS:"
-          echo "   • Release: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
+          echo "   • Branch: https://github.com/${{ github.repository }}/tree/$VERSION"
           echo "   • Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "   • Repository: https://github.com/${{ github.repository }}"
           echo ""
@@ -133,8 +133,7 @@ jobs:
           
           | Field | Value |
           |-------|-------|
-          | **Release Version** | \`$VERSION\` |
-          | **Build Strategy** | ${{ github.event.inputs.version != '' && 'Manual Version' || 'Latest Release' }} |
+          | **Build Branch** | \`$BRANCH_NAME\` |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered By** | @${{ github.actor }} |
           | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
@@ -158,11 +157,7 @@ jobs:
           
           ## 🔗 Links
           
-          EOF
-          
-          echo "- [📦 Release $VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
-          
-          cat >> $GITHUB_STEP_SUMMARY << EOF
+          - [🌿 Branch $BRANCH_NAME](https://github.com/${{ github.repository }}/tree/$BRANCH_NAME)
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [📂 Repository](https://github.com/${{ github.repository }})
           
@@ -215,7 +210,7 @@ jobs:
           fi
           
           # Create minimal one-line message
-          MESSAGE_TEXT="🚀 Building <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
+          MESSAGE_TEXT="🚀 Building <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
           
           # Escape for JSON
           MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
@@ -766,7 +761,7 @@ jobs:
             BITRISE_URL="${{ steps.trigger-bitrise.outputs.build_url }}"
             
             # Create concise failure message similar to initiation/cancellation messages
-            MESSAGE_TEXT="🚨 Failed ($FINAL_STATUS) <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }}) → <$BITRISE_URL|Build #$BUILD_NUMBER> → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
+            MESSAGE_TEXT="🚨 Failed ($FINAL_STATUS) <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION> → ${{ matrix.app }} (${{ matrix.platform }}/${{ matrix.environment }}) → <$BITRISE_URL|Build #$BUILD_NUMBER> → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
             
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
@@ -1008,7 +1003,7 @@ jobs:
           
           ## 🔗 Links
           
-          - [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
+          - [View Branch](https://github.com/${{ github.repository }}/tree/$VERSION)
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
@@ -1178,7 +1173,7 @@ jobs:
           # Add footer
           cat >> slack_message.txt << EOF
           
-          :rocket: *Release:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
+          :rocket: *Branch:* <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION>
           :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>
           EOF
           
@@ -1283,7 +1278,7 @@ jobs:
             done
             
             # Send footer message
-            FOOTER_MESSAGE=":rocket: *Release:* <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION>
+            FOOTER_MESSAGE=":rocket: *Branch:* <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION>
             :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
             
             FOOTER_CONTENT=$(echo "$FOOTER_MESSAGE" | jq -Rs .)
@@ -1456,7 +1451,7 @@ jobs:
             fi
             
             # Create minimal cancellation message
-            MESSAGE_TEXT=":no_entry_sign: Cancelled <${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
+            MESSAGE_TEXT=":no_entry_sign: Cancelled <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION> → $APP_DESCRIPTION → <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>"
             
             # Escape for JSON
             MESSAGE_CONTENT=$(echo "$MESSAGE_TEXT" | jq -Rs .)
