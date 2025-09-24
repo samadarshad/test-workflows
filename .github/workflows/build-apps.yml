@@ -1085,7 +1085,6 @@ jobs:
           ## 🔗 Links
           
           - [View Release](https://github.com/${{ github.repository }}/releases/tag/$VERSION)
-          EOF
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
