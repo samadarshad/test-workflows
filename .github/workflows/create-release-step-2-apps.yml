@@ -65,8 +65,6 @@ jobs:
       - name: Load app configuration
         id: load-config
         run: |
-          echo "📋 Loading app configuration from .github/config/bitrise-apps.json"
-          
           if [ ! -f ".github/config/bitrise-apps.json" ]; then
             echo "❌ Configuration file .github/config/bitrise-apps.json not found"
             exit 1
@@ -78,13 +76,6 @@ jobs:
             exit 1
           fi
           
-          # Display loaded configuration summary
-          echo "✅ Successfully loaded configuration:"
-          jq -r 'keys[]' .github/config/bitrise-apps.json | while read app; do
-            prefix=$(jq -r ".\"$app\".workflow_prefix" .github/config/bitrise-apps.json)
-            echo "  • $app → $prefix"
-          done
-          
           # Export config for other steps
           echo "config_loaded=true" >> $GITHUB_OUTPUT
       
@@ -93,15 +84,7 @@ jobs:
         run: |
           CURRENT_BRANCH="${{ github.ref_name }}"
           
-          echo "Using branch: $CURRENT_BRANCH"
           echo "branch_name=$CURRENT_BRANCH" >> $GITHUB_OUTPUT
-          
-          # Display branch banner
-          echo ""
-          echo "╔════════════════════════════════════════╗"
-          echo "║     BUILD BRANCH: $CURRENT_BRANCH           "
-          echo "╚════════════════════════════════════════╝"
-          echo ""
       
       - name: Determine apps to build
         id: determine-apps
@@ -109,13 +92,8 @@ jobs:
           if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
             # Dynamically load all apps from JSON configuration
             APPS=$(jq -c 'keys' .github/config/bitrise-apps.json)
-            echo "Building all apps from configuration:"
-            echo "$APPS" | jq -r '.[]' | while read app; do
-              echo "  • $app"
-            done
           else
             APPS='["${{ github.event.inputs.app_selection }}"]'
-            echo "Building specific app: ${{ github.event.inputs.app_selection }}"
           fi
           
           echo "apps=$APPS" >> $GITHUB_OUTPUT
@@ -125,42 +103,9 @@ jobs:
           VERSION="${{ steps.determine-branch.outputs.branch_name }}"
           APPS='${{ steps.determine-apps.outputs.apps }}'
           
-          echo ""
-          echo "╔══════════════════════════════════════════════════════════════╗"
-          echo "║                        � BUILD SUMMARY                      ║"
-          echo "╚══════════════════════════════════════════════════════════════╝"
-          echo ""
-          echo "🏷️  RELEASE VERSION: $VERSION"
-          echo "🎯 BUILD STRATEGY:   ${{ github.event.inputs.version != '' && 'Manual Version' || 'Latest Release' }}"
-          echo "📱 APP SELECTION:    ${{ github.event.inputs.app_selection }}"
-          echo "👤 TRIGGERED BY:     @${{ github.actor }}"
-          echo "🕐 STARTED AT:       $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          echo ""
-          echo "📋 APPS TO BUILD:"
-          echo "$APPS" | jq -r '.[]' | while read app; do
-            echo "   • $app"
-          done
-          echo ""
-          
           # Calculate total builds
           APP_COUNT=$(echo "$APPS" | jq -r '. | length')
           TOTAL_BUILDS=$((APP_COUNT * 4))
-          
-          echo "📊 BUILD DETAILS:"
-          echo "   • Total Apps: $APP_COUNT"
-          echo "   • Platforms: Android & iOS"
-          echo "   • Environments: Staging & Production"
-          echo "   • Total Builds: $TOTAL_BUILDS"
-          echo ""
-          echo "🔗 REFERENCE LINKS:"
-          echo "   • Branch: https://github.com/${{ github.repository }}/tree/$VERSION"
-          echo "   • Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "   • Repository: https://github.com/${{ github.repository }}"
-          echo ""
-          echo "═══════════════════════════════════════════════════════════════"
-          echo "🚀 Starting Bitrise builds for $TOTAL_BUILDS workflows..."
-          echo "═══════════════════════════════════════════════════════════════"
-          echo ""
           
           # Check if branch corresponds to a git tag with release notes
           RELEASE_TAG=""
@@ -174,19 +119,11 @@ jobs:
             if git tag --list | grep -q "^${POTENTIAL_TAG}$"; then
               RELEASE_TAG="$POTENTIAL_TAG"
               RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
-              echo "✅ Found corresponding release tag: $RELEASE_TAG"
-              echo "📝 Release notes available at: $RELEASE_URL"
-            else
-              echo "ℹ️ No corresponding tag found for $POTENTIAL_TAG"
             fi
           elif git tag --list | grep -q "^${VERSION}$"; then
             # Direct tag match
             RELEASE_TAG="$VERSION"
             RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
-            echo "✅ Branch name matches tag: $RELEASE_TAG"
-            echo "📝 Release notes available at: $RELEASE_URL"
-          else
-            echo "ℹ️ Branch $VERSION does not correspond to a release tag"
           fi
           
           # Create GitHub Step Summary
@@ -259,8 +196,6 @@ jobs:
           VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
-          echo "📤 Sending initial Slack notification for build trigger..."
-          
           # Build the apps list for the message
           APPS_LIST=""
           echo "$APPS" | jq -r '.[]' | while read app; do
@@ -301,16 +236,14 @@ jobs:
           EOF
           )
           
-          echo "Payload preview:"
-          echo "$PAYLOAD" | jq .
-          
           # Send to Slack
           RESPONSE=$(curl -X POST -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
             "$SLACK_WEBHOOK_URL")
           
           if [ "$RESPONSE" = "ok" ]; then
-            echo "✅ Initial Slack notification sent successfully!"
+            # Success - no logging needed
+            :
           else
             echo "❌ Failed to send initial Slack notification. Response: $RESPONSE"
             # Don't fail the workflow for notification issues
@@ -353,14 +286,6 @@ jobs:
           echo "app_name_clean=$APP_NAME_CLEAN" >> $GITHUB_OUTPUT
           echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          
-          echo "📱 Build Configuration:"
-          echo "  App: ${{ matrix.app }}"
-          echo "  Platform: ${{ matrix.platform }}"
-          echo "  Environment: ${{ matrix.environment }}"
-          echo "  Workflow: $WORKFLOW_NAME"
-          echo "  Branch: $BRANCH_NAME"
-          echo "  Branch: ${{ needs.determine-build-parameters.outputs.branch_name }}"
       
       - name: Trigger Bitrise build
         id: trigger-bitrise
@@ -371,8 +296,6 @@ jobs:
           WORKFLOW_NAME="${{ steps.build-config.outputs.workflow_name }}"
           BRANCH_NAME="${{ steps.build-config.outputs.branch_name }}"
           VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
-          
-          echo "🚀 Triggering Bitrise build for $WORKFLOW_NAME"
           
           # Trigger Bitrise build using personal access token
           RESPONSE=$(curl -X POST "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds" \
@@ -412,11 +335,6 @@ jobs:
             echo "Response: $RESPONSE"
             exit 1
           fi
-          
-          echo "✅ Bitrise build triggered successfully"
-          echo "Build URL: $BUILD_URL"
-          echo "Build Slug: $BUILD_SLUG"
-          echo "Build Number: $BUILD_NUMBER"
           
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
           echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
@@ -472,8 +390,6 @@ jobs:
           # Failed if it matched failedBodyRegex (error/aborted)
           # Timed out if it exceeded the timeout
           
-          echo "⏳ Extracting final build status..."
-          
           # Get the final build status from Bitrise API
           BUILD_SLUG="${{ steps.trigger-bitrise.outputs.build_slug }}"
           
@@ -484,12 +400,8 @@ jobs:
             BUILD_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.data.status_text // "unknown"')
             FINISHED_AT=$(echo "$STATUS_RESPONSE" | jq -r '.data.finished_at // null')
             
-            echo "Final Build Status: $BUILD_STATUS"
-            echo "Finished At: $FINISHED_AT"
-            
             # Set outputs based on the polling result and final status
             if [ "${{ steps.wait-for-completion.outcome }}" = "success" ]; then
-              echo "✅ Build completed successfully"
               echo "final_status=success" >> $GITHUB_OUTPUT
               echo "build_completed=true" >> $GITHUB_OUTPUT
               echo "build_failed=false" >> $GITHUB_OUTPUT
