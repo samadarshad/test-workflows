@@ -667,6 +667,7 @@ jobs:
             "app": "${{ matrix.app }}",
             "platform": "${{ matrix.platform }}",
             "environment": "${{ matrix.environment }}",
+            "workflow_name": "${{ steps.build-config.outputs.workflow_name }}",
             "build_number": "$BUILD_NUMBER",
             "status": "$FINAL_STATUS",
             "completed": "$BUILD_COMPLETED",
@@ -775,7 +776,6 @@ jobs:
           EOF
           
           echo "$APPS" | jq -r '.[]' | while read app; do
-            APP_LOWER=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr -d '.')
             for platform in android ios; do
               for env in staging production; do
                 BUILD_FILE="build-results/${app}-${platform}-${env}.json"
@@ -787,6 +787,7 @@ jobs:
                   STATUS=$(echo "$BUILD_DATA" | jq -r '.status')
                   COMPLETED=$(echo "$BUILD_DATA" | jq -r '.completed')
                   BITRISE_URL=$(echo "$BUILD_DATA" | jq -r '.bitrise_url // empty')
+                  WORKFLOW_NAME=$(echo "$BUILD_DATA" | jq -r '.workflow_name // empty')
                   
                   # Format build number with hyperlink if available (Android only)
                   if [ "$platform" = "android" ] && [ "$STATUS" = "success" ] && [ -n "$INSTALL_URL" ] && [ "$INSTALL_URL" != "null" ] && [ "$INSTALL_URL" != "empty" ]; then
@@ -811,9 +812,14 @@ jobs:
                     BITRISE_LINK="_No link available_"
                   fi
                   
-                  echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | $BUILD_DISPLAY | $STATUS_DISPLAY | $BITRISE_LINK |" >> $GITHUB_STEP_SUMMARY
+                  WORKFLOW_DISPLAY="$WORKFLOW_NAME"
+                  if [ -z "$WORKFLOW_NAME" ] || [ "$WORKFLOW_NAME" = "empty" ] || [ "$WORKFLOW_NAME" = "null" ]; then
+                    WORKFLOW_DISPLAY="_Unknown workflow_"
+                  fi
+                  
+                  echo "| $app | $platform | $env | $WORKFLOW_DISPLAY | $BUILD_DISPLAY | $STATUS_DISPLAY | $BITRISE_LINK |" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "| $app | $platform | $env | ${APP_LOWER}-${platform}-${env} | _No data_ | ❓ Unknown | _No build_ |" >> $GITHUB_STEP_SUMMARY
+                  echo "| $app | $platform | $env | _No workflow data_ | _No data_ | ❓ Unknown | _No build_ |" >> $GITHUB_STEP_SUMMARY
                 fi
               done
             done
