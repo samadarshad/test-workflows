@@ -926,7 +926,7 @@ jobs:
           
           # Initialize message with title
           cat > slack_message.txt << EOF
-          📊 *Build Results for $VERSION*
+          📊 *Build Results for <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION>* (<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run #${{ github.run_number }}>)
           
           EOF
                    
@@ -993,8 +993,6 @@ jobs:
           # Add footer
           cat >> slack_message.txt << EOF
           
-          :rocket: *Branch:* <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION>
-          :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>
           EOF
           
           echo "Final Slack message:"
@@ -1096,13 +1094,6 @@ jobs:
                 sleep 1
               fi
             done
-            
-            # Send footer message
-            FOOTER_MESSAGE=":rocket: *Branch:* <${{ github.server_url }}/${{ github.repository }}/tree/$VERSION|$VERSION>
-            :github: *Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
-            
-            FOOTER_CONTENT=$(echo "$FOOTER_MESSAGE" | jq -Rs .)
-            send_slack_message "$FOOTER_CONTENT" "🔗 Build Links"
             
             echo "✅ All message parts sent successfully!"
           fi
