@@ -124,6 +124,34 @@ jobs:
           echo "═══════════════════════════════════════════════════════════════"
           echo ""
           
+          # Check if branch corresponds to a git tag with release notes
+          RELEASE_TAG=""
+          RELEASE_URL=""
+          
+          # Check if current branch matches a release branch pattern (e.g., release/v1.2.3)
+          if [[ "$VERSION" =~ ^release/(.+)$ ]]; then
+            POTENTIAL_TAG="${BASH_REMATCH[1]}"
+            echo "🔍 Checking if release branch corresponds to tag: $POTENTIAL_TAG"
+            
+            # Check if tag exists
+            if git tag --list | grep -q "^${POTENTIAL_TAG}$"; then
+              RELEASE_TAG="$POTENTIAL_TAG"
+              RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
+              echo "✅ Found corresponding release tag: $RELEASE_TAG"
+              echo "📝 Release notes available at: $RELEASE_URL"
+            else
+              echo "ℹ️ No corresponding tag found for $POTENTIAL_TAG"
+            fi
+          elif git tag --list | grep -q "^${VERSION}$"; then
+            # Direct tag match
+            RELEASE_TAG="$VERSION"
+            RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
+            echo "✅ Branch name matches tag: $RELEASE_TAG"
+            echo "📝 Release notes available at: $RELEASE_URL"
+          else
+            echo "ℹ️ Branch $VERSION does not correspond to a release tag"
+          fi
+          
           # Create GitHub Step Summary
           cat >> $GITHUB_STEP_SUMMARY << EOF
           # 🚀 Build Summary
@@ -136,6 +164,16 @@ jobs:
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered By** | @${{ github.actor }} |
           | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          EOF
+          
+          # Add release notes link if available
+          if [ -n "$RELEASE_URL" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+          | **Release Notes** | [📝 View Release $RELEASE_TAG]($RELEASE_URL) |
+          EOF
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ## 📱 Apps to Build
           
@@ -773,6 +811,16 @@ jobs:
           VERSION="${{ needs.determine-build-parameters.outputs.branch_name }}"
           APPS='${{ needs.determine-build-parameters.outputs.apps }}'
           
+          # Detect if branch matches release pattern or is tagged
+          RELEASE_TAG=""
+          if [[ "$VERSION" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Extract version from branch name (e.g., release/v1.2.3 -> v1.2.3)
+            RELEASE_TAG="${VERSION#release/}"
+          elif git show-ref --tags --quiet --verify -- "refs/tags/$VERSION" 2>/dev/null; then
+            # Direct tag match
+            RELEASE_TAG="$VERSION"
+          fi
+          
           cat >> $GITHUB_STEP_SUMMARY << EOF
           # 🚀 Bitrise Build Summary
           
@@ -784,6 +832,9 @@ jobs:
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
+          EOF
+          
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ## 📦 Bitrise Workflows Triggered
           
