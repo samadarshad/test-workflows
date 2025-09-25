@@ -20,7 +20,7 @@
 # Set these at: Settings > Secrets and variables > Actions > Variables tab
 # Each app requires its own specific connected app ID variable
 
-name: Build Apps
+name: 'Create Release Step 2: Build Apps'
 
 run-name: "Build Apps: ${{ github.ref_name }} - ${{ github.event.inputs.app_selection }}"
 

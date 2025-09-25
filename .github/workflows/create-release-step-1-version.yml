@@ -1,4 +1,4 @@
-name: Create Release Version
+name: 'Create Release Step 1: Version'
 
 run-name: "Create Release: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Auto-increment' }}"
 
