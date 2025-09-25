@@ -2,24 +2,29 @@
 # 
 # This workflow builds mobile apps using Bitrise for multiple apps, platforms, and environments.
 # 
+# APP CONFIGURATION:
+# ==================
+# All app configurations are managed in .github/config/apps.json
+# This centralized file contains:
+# - App names and their corresponding variable mappings
+# - Required repository variable names for each app
+# - Workflow prefixes and build settings
+# - Timeout and polling configurations
+# 
+# To add a new app:
+# 1. Add entry to .github/config/apps.json with bitrise_connected_app_id and workflow_prefix
+# 2. The app will automatically be included when "All Apps" is selected
+# 3. Optionally add the app name to the workflow input dropdown for individual selection
+# 
 # Required Secrets:
 # - BITRISE_ACCESS_TOKEN: Bitrise API access token
 # 
 # Required Repository Variables:
 # - BITRISE_PROJECT_SLUG: Bitrise project identifier
 # - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
-#
-# Required Repository Variables (for app-specific connected app IDs):
-# - BITRISE_CONNECTED_APP_ID_EV_ENERGY: Connected app ID for ev.energy Android builds
-# - BITRISE_CONNECTED_APP_ID_NGMA: Connected app ID for NGMA Android builds
-# - BITRISE_CONNECTED_APP_ID_NGNY: Connected app ID for NGNY Android builds
-# - BITRISE_CONNECTED_APP_ID_SVCE: Connected app ID for SVCE Android builds
-# - BITRISE_CONNECTED_APP_ID_MCE: Connected app ID for MCE Android builds
-# - BITRISE_CONNECTED_APP_ID_ANWB: Connected app ID for ANWB Android builds
-#
-# Set these at: Settings > Secrets and variables > Actions > Variables tab
-# Each app requires its own specific connected app ID variable
+# - App-specific connected app IDs (see .github/config/apps.json for exact variable names)
 # 
+# Set these at: Settings > Secrets and variables > Actions > Variables tab
 # For setup instructions, see: docs/app-specific-connected-app-ids.md
 
 name: 'Create Release Step 2: Build Apps'
@@ -57,6 +62,32 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Load app configuration
+        id: load-config
+        run: |
+          echo "📋 Loading app configuration from .github/config/apps.json"
+          
+          if [ ! -f ".github/config/apps.json" ]; then
+            echo "❌ Configuration file .github/config/apps.json not found"
+            exit 1
+          fi
+          
+          # Validate JSON format
+          if ! jq empty .github/config/apps.json 2>/dev/null; then
+            echo "❌ Invalid JSON in .github/config/apps.json"
+            exit 1
+          fi
+          
+          # Display loaded configuration summary
+          echo "✅ Successfully loaded configuration:"
+          jq -r 'keys[]' .github/config/apps.json | while read app; do
+            prefix=$(jq -r ".\"$app\".workflow_prefix" .github/config/apps.json)
+            echo "  • $app → $prefix"
+          done
+          
+          # Export config for other steps
+          echo "config_loaded=true" >> $GITHUB_OUTPUT
+      
       - name: Determine branch to build
         id: determine-branch
         run: |
@@ -76,8 +107,12 @@ jobs:
         id: determine-apps
         run: |
           if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
-            APPS='["ev.energy", "NGMA", "NGNY", "SVCE", "MCE", "ANWB"]'
-            echo "Building all apps"
+            # Dynamically load all apps from JSON configuration
+            APPS=$(jq -c 'keys' .github/config/apps.json)
+            echo "Building all apps from configuration:"
+            echo "$APPS" | jq -r '.[]' | while read app; do
+              echo "  • $app"
+            done
           else
             APPS='["${{ github.event.inputs.app_selection }}"]'
             echo "Building specific app: ${{ github.event.inputs.app_selection }}"
@@ -295,6 +330,12 @@ jobs:
         environment: [staging, production]
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/config/
+          sparse-checkout-cone-mode: false
+      
       - name: Prepare build configuration
         id: build-config
         run: |
@@ -481,42 +522,36 @@ jobs:
         run: |
           APP_NAME="${{ matrix.app }}"
           
-          # Convert app name to a valid variable name format (uppercase, replace dots with underscores)
-          APP_VAR_NAME=$(echo "$APP_NAME" | tr '[:lower:]' '[:upper:]' | tr '.' '_')
+          echo "🔍 Resolving connected app ID for: $APP_NAME"
           
-          # Get app-specific connected app ID from variables
-          case "$APP_VAR_NAME" in
-            "EV_ENERGY")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_EV_ENERGY }}"
-              ;;
-            "NGMA")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_NGMA }}"
-              ;;
-            "NGNY")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_NGNY }}"
-              ;;
-            "SVCE")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_SVCE }}"
-              ;;
-            "MCE")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_MCE }}"
-              ;;
-            "ANWB")
-              CONNECTED_APP_ID="${{ vars.BITRISE_CONNECTED_APP_ID_ANWB }}"
-              ;;
-            *)
-              echo "⚠️ Unknown app: $APP_NAME - no connected app ID configured"
-              CONNECTED_APP_ID=""
-              ;;
-          esac
+          # Load app configuration from JSON file
+          if [ ! -f ".github/config/apps.json" ]; then
+            echo "❌ Configuration file .github/config/apps.json not found"
+            echo "💡 Create .github/config/apps.json with app configurations"
+            echo "connected_app_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           
-          if [ -n "$CONNECTED_APP_ID" ]; then
-            echo "✅ Using connected app ID: ${CONNECTED_APP_ID:0:8}... (for $APP_NAME)"
+          # Check if app exists in configuration
+          if ! jq -e ".\"$APP_NAME\"" .github/config/apps.json > /dev/null; then
+            echo "⚠️ App '$APP_NAME' not found in .github/config/apps.json"
+            echo "💡 Add $APP_NAME to the apps configuration file"
+            echo "📖 Available apps: $(jq -r 'keys | join(", ")' .github/config/apps.json)"
+            echo "connected_app_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get connected app ID directly from JSON configuration
+          CONNECTED_APP_ID=$(jq -r ".\"$APP_NAME\".bitrise_connected_app_id" .github/config/apps.json)
+          
+          if [ -n "$CONNECTED_APP_ID" ] && [ "$CONNECTED_APP_ID" != "null" ] && [ "$CONNECTED_APP_ID" != "your-${APP_NAME,,}-connected-app-id-here" ]; then
+            echo "✅ Successfully resolved connected app ID from configuration: ${CONNECTED_APP_ID:0:8}... (for $APP_NAME)"
             echo "connected_app_id=$CONNECTED_APP_ID" >> $GITHUB_OUTPUT
           else
-            echo "❌ No connected app ID found for $APP_NAME"
-            echo "💡 Set BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME} repository variable"
+            echo "❌ No connected app ID configured for $APP_NAME"
+            echo "💡 Set the bitrise_connected_app_id field in .github/config/apps.json"
             echo "📖 See docs/app-specific-connected-app-ids.md for setup instructions"
+            echo "📋 Current value: $CONNECTED_APP_ID"
             echo "connected_app_id=" >> $GITHUB_OUTPUT
           fi
       

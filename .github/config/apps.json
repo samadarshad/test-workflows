@@ -1,0 +1,26 @@
+{
+  "ev.energy": {
+    "bitrise_connected_app_id": "your-ev-energy-connected-app-id-here",
+    "workflow_prefix": "evenergy"
+  },
+  "NGMA": {
+    "bitrise_connected_app_id": "your-ngma-connected-app-id-here",
+    "workflow_prefix": "ngma"
+  },
+  "NGNY": {
+    "bitrise_connected_app_id": "your-ngny-connected-app-id-here",
+    "workflow_prefix": "ngny"
+  },
+  "SVCE": {
+    "bitrise_connected_app_id": "your-svce-connected-app-id-here",
+    "workflow_prefix": "svce"
+  },
+  "MCE": {
+    "bitrise_connected_app_id": "your-mce-connected-app-id-here",
+    "workflow_prefix": "mce"
+  },
+  "ANWB": {
+    "bitrise_connected_app_id": "your-anwb-connected-app-id-here",
+    "workflow_prefix": "anwb"
+  }
+}
