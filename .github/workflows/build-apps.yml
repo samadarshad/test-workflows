@@ -159,16 +159,11 @@ jobs:
           - [🌿 Branch $VERSION](https://github.com/${{ github.repository }}/tree/$VERSION)
           - [🔄 Workflow Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [📂 Repository](https://github.com/${{ github.repository }})
+          - [🏗️ Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
           ---
           
           **Next**: Triggering $TOTAL_BUILDS Bitrise builds across all apps, platforms, and environments...
-          
-          ## 🔗 Where to Find Bitrise Links
-          
-          1. **Individual Build Steps**: Each build will show its Bitrise link in its own step summary below
-          2. **Summary Table**: Check the "Bitrise Build Summary" at the end for all links in one consolidated table
-          3. **Bitrise Dashboard**: [Open Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }}) to see all builds
           
           ---
           EOF
@@ -785,9 +780,7 @@ jobs:
           
           | Field | Value |
           |-------|-------|
-          | **Version** | \`$VERSION\` |
-          | **Release Branch** | \`release/$VERSION\` |
-          | **Version Source** | ${{ github.event.inputs.version != '' && 'Manual' || 'Latest Release' }} |
+          | **Build Branch** | [🌿 $VERSION](https://github.com/${{ github.repository }}/tree/$VERSION) |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
