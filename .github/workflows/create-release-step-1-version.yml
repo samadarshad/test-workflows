@@ -1,4 +1,5 @@
 name: 'Create Release Step 1: Version'
+description: 'Create a new release version and branch. Select the branch you want to base the release on.'
 
 run-name: "Create Release: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'Auto-increment' }}"
 

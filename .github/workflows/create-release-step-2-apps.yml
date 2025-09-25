@@ -21,6 +21,7 @@
 # Each app requires its own specific connected app ID variable
 
 name: 'Create Release Step 2: Build Apps'
+description: 'Build selected apps using Bitrise. Select a release branch created in Step 1.'
 
 run-name: "Build Apps: ${{ github.ref_name }} - ${{ github.event.inputs.app_selection }}"
 
