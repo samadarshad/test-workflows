@@ -123,10 +123,8 @@ jobs:
           echo "source_branch=$SOURCE_BRANCH" >> $GITHUB_OUTPUT
           
           if [ "$BRANCH_CREATED" = "true" ]; then
-            echo "🌿 Created new branch $BRANCH_NAME from $SOURCE_BRANCH"
             echo "branch_exists=false" >> $GITHUB_OUTPUT
           else
-            echo "✅ Branch $BRANCH_NAME already exists"
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           fi
       

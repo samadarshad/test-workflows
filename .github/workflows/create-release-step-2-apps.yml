@@ -132,7 +132,6 @@ jobs:
           # Check if current branch matches a release branch pattern (e.g., release/v1.2.3)
           if [[ "$VERSION" =~ ^release/(.+)$ ]]; then
             POTENTIAL_TAG="${BASH_REMATCH[1]}"
-            echo "🔍 Checking if release branch corresponds to tag: $POTENTIAL_TAG"
             
             # Check if tag exists
             if git tag --list | grep -q "^${POTENTIAL_TAG}$"; then
@@ -359,10 +358,6 @@ jobs:
               }
             }")
           
-          # Debug: Show full response structure
-          echo "🔍 Full Bitrise API Response:"
-          echo "$RESPONSE" | jq .
-          
           # Extract build URL, status, build number, and public install page URL
           BUILD_URL=$(echo "$RESPONSE" | jq -r '.build_url // empty')
           BUILD_SLUG=$(echo "$RESPONSE" | jq -r '.build_slug // empty')
@@ -381,10 +376,6 @@ jobs:
           echo "Build Slug: $BUILD_SLUG"
           echo "Build Number: $BUILD_NUMBER"
           echo "Public Install Page: $PUBLIC_INSTALL_PAGE_URL"
-          
-          # Check available fields for install page
-          echo "🔍 Checking for install page related fields:"
-          echo "$RESPONSE" | jq 'keys[]' | grep -i install || echo "No install-related keys found"
           
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
           echo "build_slug=$BUILD_SLUG" >> $GITHUB_OUTPUT
@@ -456,12 +447,6 @@ jobs:
             echo "Final Build Status: $BUILD_STATUS"
             echo "Finished At: $FINISHED_AT"
             
-            # Debug: Show full build completion response (only for Android)
-            if [ "${{ matrix.platform }}" = "android" ]; then
-              echo "🔍 Full build completion response:"
-              echo "$STATUS_RESPONSE" | jq .data
-            fi
-            
             # Set outputs based on the polling result and final status
             if [ "${{ steps.wait-for-completion.outcome }}" = "success" ]; then
               echo "✅ Build completed successfully"
@@ -499,9 +484,6 @@ jobs:
           
           # Convert app name to a valid variable name format (uppercase, replace dots with underscores)
           APP_VAR_NAME=$(echo "$APP_NAME" | tr '[:lower:]' '[:upper:]' | tr '.' '_')
-          
-          echo "🔍 Resolving connected app ID for app: $APP_NAME"
-          echo "Looking for variable: BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME}"
           
           # Get app-specific connected app ID from variables
           case "$APP_VAR_NAME" in
@@ -552,12 +534,9 @@ jobs:
           # Extract build number for Release Management API search
           BUILD_NUMBER="${{ steps.trigger-bitrise.outputs.build_number }}"
           
-          echo "🔍 Searching Release Management API with build number: $BUILD_NUMBER"
-          
           FINAL_PUBLIC_INSTALL_URL=""
           
           while [ $install_page_elapsed -lt $INSTALL_PAGE_WAIT_TIME ]; do
-            echo "🔍 Checking Release Management API for install page URL (elapsed: ${install_page_elapsed}s)..."
             
             # Use Release Management API to find installable artifacts
             # Use the app-specific connected app ID resolved earlier
@@ -567,9 +546,6 @@ jobs:
               # Search by build number only
               RELEASE_MGMT_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.BITRISE_ACCESS_TOKEN }}" \
                 "https://api.bitrise.io/release-management/v1/connected-apps/${CONNECTED_APP_ID}/installable-artifacts?items_per_page=20&page=1&search=${BUILD_NUMBER}")
-              
-              echo "🔍 Release Management API response:"
-              echo "$RELEASE_MGMT_RESPONSE" | jq . || echo "Invalid JSON response"
               
               if echo "$RELEASE_MGMT_RESPONSE" | jq empty 2>/dev/null; then
                 # Check if we got any items
@@ -1210,7 +1186,6 @@ jobs:
             echo "🌐 Build URL: $BUILD_URL"
             
             # Check current build status first
-            echo "🔍 Checking current build status..."
             STATUS_RESPONSE=$(curl -s -H "Authorization: token ${BITRISE_ACCESS_TOKEN}" \
               "https://api.bitrise.io/v0.1/apps/${BITRISE_APP_ID}/builds/${BUILD_SLUG}")
             
