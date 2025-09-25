@@ -132,7 +132,7 @@ jobs:
           
           | Field | Value |
           |-------|-------|
-          | **Build Branch** | \`$VERSION\` |
+          | **Build Branch** | [🌿 $VERSION](https://github.com/${{ github.repository }}/tree/$VERSION) |
           | **App Selection** | ${{ github.event.inputs.app_selection }} |
           | **Triggered By** | @${{ github.actor }} |
           | **Started At** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
@@ -896,7 +896,6 @@ jobs:
           
           ## 🔗 Links
           
-          - [View Branch](https://github.com/${{ github.repository }}/tree/$VERSION)
           - [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           - [Bitrise Dashboard](https://app.bitrise.io/app/${{ vars.BITRISE_PROJECT_SLUG }})
           
@@ -1223,7 +1222,7 @@ jobs:
           | Field | Value |
           |-------|-------|
           | **Cancelled At** | $CURRENT_TIME |
-          | **Build Branch** | \`${{ needs.determine-build-parameters.outputs.branch_name }}\` |
+          | **Build Branch** | [🌿 ${{ needs.determine-build-parameters.outputs.branch_name }}](https://github.com/${{ github.repository }}/tree/${{ needs.determine-build-parameters.outputs.branch_name }}) |
           | **Triggered by** | @${{ github.actor }} |
           | **Workflow Run** | #${{ github.run_number }} |
           
