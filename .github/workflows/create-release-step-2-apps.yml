@@ -25,7 +25,7 @@
 # 
 # Set repository variables at: Settings > Secrets and variables > Actions > Variables tab
 # Configure connected app IDs directly in: .github/config/bitrise-apps.json
-# For setup instructions, see: docs/app-specific-connected-app-ids.md
+# For setup instructions, see: .github/config/README.md
 
 name: 'Create Release Step 2: Build Apps'
 description: 'Build selected apps using Bitrise. Select a release branch created in Step 1.'
