@@ -6,10 +6,10 @@
 # ==================
 # All app configurations are managed in .github/config/apps.json
 # This centralized file contains:
-# - App names and their corresponding variable mappings
-# - Required repository variable names for each app
-# - Workflow prefixes and build settings
-# - Timeout and polling configurations
+# - App names as keys with their configuration objects
+# - Bitrise connected app IDs for Android install page generation
+# - Workflow prefixes for Bitrise workflow naming
+# - Apps are automatically discovered when "All Apps" is selected
 # 
 # To add a new app:
 # 1. Add entry to .github/config/apps.json with bitrise_connected_app_id and workflow_prefix
@@ -22,9 +22,9 @@
 # Required Repository Variables:
 # - BITRISE_PROJECT_SLUG: Bitrise project identifier
 # - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
-# - App-specific connected app IDs (see .github/config/apps.json for exact variable names)
 # 
-# Set these at: Settings > Secrets and variables > Actions > Variables tab
+# Set repository variables at: Settings > Secrets and variables > Actions > Variables tab
+# Configure connected app IDs directly in: .github/config/apps.json
 # For setup instructions, see: docs/app-specific-connected-app-ids.md
 
 name: 'Create Release Step 2: Build Apps'

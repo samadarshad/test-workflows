@@ -1,26 +1,26 @@
 {
   "ev.energy": {
-    "bitrise_connected_app_id": "your-ev-energy-connected-app-id-here",
+    "bitrise_connected_app_id": "2749f1cd-b627-4d47-ad6d-4a38c55fa7f7",
     "workflow_prefix": "evenergy"
   },
   "NGMA": {
-    "bitrise_connected_app_id": "your-ngma-connected-app-id-here",
+    "bitrise_connected_app_id": "f639eb13-388d-4915-b6ea-3cd8aa900f37",
     "workflow_prefix": "ngma"
   },
   "NGNY": {
-    "bitrise_connected_app_id": "your-ngny-connected-app-id-here",
+    "bitrise_connected_app_id": "a50447f1-010e-4692-b98e-0d72deca7875",
     "workflow_prefix": "ngny"
   },
   "SVCE": {
-    "bitrise_connected_app_id": "your-svce-connected-app-id-here",
+    "bitrise_connected_app_id": "0db37f1f-4886-4f40-aec2-8f7a41b42356",
     "workflow_prefix": "svce"
   },
   "MCE": {
-    "bitrise_connected_app_id": "your-mce-connected-app-id-here",
+    "bitrise_connected_app_id": "aea9ea71-4ea4-4710-a51e-fc3f40e2c0be",
     "workflow_prefix": "mce"
   },
   "ANWB": {
-    "bitrise_connected_app_id": "your-anwb-connected-app-id-here",
+    "bitrise_connected_app_id": "1c1091db-376d-40b2-9770-ef57aa3546ef",
     "workflow_prefix": "anwb"
   }
 }
