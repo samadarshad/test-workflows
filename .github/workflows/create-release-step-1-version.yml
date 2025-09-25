@@ -155,5 +155,5 @@ jobs:
           
           ## Next Steps
           
-          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apps.yml) → Select branch: **${{ steps.set-branch-outputs.outputs.branch_name }}**
+          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/create-release-step-2-apps.yml) → Select branch: **${{ steps.set-branch-outputs.outputs.branch_name }}**
           EOF
