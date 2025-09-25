@@ -834,6 +834,13 @@ jobs:
           | **Workflow Run** | #${{ github.run_number }} |
           EOF
           
+          # Add release notes link if this is a tagged release
+          if [ -n "$RELEASE_TAG" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+          | **Release Notes** | [📝 $RELEASE_TAG](https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG) |
+          EOF
+          fi
+          
           cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ## 📦 Bitrise Workflows Triggered
