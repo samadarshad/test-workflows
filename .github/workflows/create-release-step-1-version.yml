@@ -111,23 +111,6 @@ jobs:
           branch: 'refs/heads/release/${{ steps.determine-version.outputs.version }}'
           sha: '${{ github.sha }}'
       
-      - name: Set branch outputs
-        id: set-branch-outputs
-        run: |
-          VERSION="${{ steps.determine-version.outputs.version }}"
-          BRANCH_NAME="release/${VERSION}"
-          SOURCE_BRANCH="${{ github.ref_name }}"
-          BRANCH_CREATED="${{ steps.create-branch.outputs.created }}"
-          
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "source_branch=$SOURCE_BRANCH" >> $GITHUB_OUTPUT
-          
-          if [ "$BRANCH_CREATED" = "true" ]; then
-            echo "branch_exists=false" >> $GITHUB_OUTPUT
-          else
-            echo "branch_exists=true" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Create GitHub Release
         id: create-release
         uses: softprops/action-gh-release@v2
@@ -135,23 +118,26 @@ jobs:
           tag_name: ${{ steps.determine-version.outputs.version }}
           name: ${{ steps.determine-version.outputs.version }}
           body_path: release_notes.md
-          target_commitish: ${{ steps.set-branch-outputs.outputs.branch_name }}
+          target_commitish: release/${{ steps.determine-version.outputs.version }}
           draft: false
           prerelease: false
       
       - name: Create job summary
         run: |
+          VERSION="${{ steps.determine-version.outputs.version }}"
+          BRANCH_NAME="release/${VERSION}"
+          
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          # Release Created: ${{ steps.determine-version.outputs.version }}
+          # Release Created: $VERSION
           
           | Field | Value |
           |-------|-------|
-          | **Version** | \`${{ steps.determine-version.outputs.version }}\` |
+          | **Version** | \`$VERSION\` |
           | **Type** | ${{ github.event.inputs.version != '' && 'Manual' || 'Auto-increment' }} |
-          | **Release Branch** | [\`${{ steps.set-branch-outputs.outputs.branch_name }}\`](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.set-branch-outputs.outputs.branch_name }}) |
+          | **Release Branch** | [\`$BRANCH_NAME\`](${{ github.server_url }}/${{ github.repository }}/tree/$BRANCH_NAME) |
           | **Release Notes** | [View Release](${{ steps.create-release.outputs.url }}) |
           
           ## Next Steps
           
-          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/create-release-step-2-apps.yml) → Select branch: **${{ steps.set-branch-outputs.outputs.branch_name }}**
+          [Build Apps](${{ github.server_url }}/${{ github.repository }}/actions/workflows/create-release-step-2-apps.yml) → Select branch: **$BRANCH_NAME**
           EOF
