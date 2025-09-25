@@ -19,6 +19,8 @@
 #
 # Set these at: Settings > Secrets and variables > Actions > Variables tab
 # Each app requires its own specific connected app ID variable
+# 
+# For setup instructions, see: docs/app-specific-connected-app-ids.md
 
 name: 'Create Release Step 2: Build Apps'
 description: 'Build selected apps using Bitrise. Select a release branch created in Step 1.'
@@ -514,6 +516,7 @@ jobs:
           else
             echo "❌ No connected app ID found for $APP_NAME"
             echo "💡 Set BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME} repository variable"
+            echo "📖 See docs/app-specific-connected-app-ids.md for setup instructions"
             echo "connected_app_id=" >> $GITHUB_OUTPUT
           fi
       
@@ -573,6 +576,7 @@ jobs:
             else
               echo "⚠️ Connected app ID not available - Release Management API unavailable"
               echo "💡 Set BITRISE_CONNECTED_APP_ID_${APP_VAR_NAME} repository variable"
+              echo "📖 See docs/app-specific-connected-app-ids.md for setup instructions"
             fi
             
             echo "⏳ Install page URL not ready yet, waiting ${INSTALL_PAGE_POLL_INTERVAL}s..."
@@ -585,6 +589,7 @@ jobs:
             echo "⚠️ Timed out waiting for install page URL after ${INSTALL_PAGE_WAIT_TIME}s"
             echo "🎯 Note: Install page may still become available later - check Bitrise dashboard"
             echo "💡 Tip: Ensure correct connected app ID is configured for ${{ matrix.app }}"
+            echo "📖 See docs/app-specific-connected-app-ids.md for setup instructions"
             FINAL_PUBLIC_INSTALL_URL=""
           fi
           
