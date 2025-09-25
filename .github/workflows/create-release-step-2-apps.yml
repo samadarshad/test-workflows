@@ -4,7 +4,7 @@
 # 
 # APP CONFIGURATION:
 # ==================
-# All app configurations are managed in .github/config/apps.json
+# All app configurations are managed in .github/config/bitrise-apps.json
 # This centralized file contains:
 # - App names as keys with their configuration objects
 # - Bitrise connected app IDs for Android install page generation
@@ -12,7 +12,7 @@
 # - Apps are automatically discovered when "All Apps" is selected
 # 
 # To add a new app:
-# 1. Add entry to .github/config/apps.json with bitrise_connected_app_id and workflow_prefix
+# 1. Add entry to .github/config/bitrise-apps.json with bitrise_connected_app_id and workflow_prefix
 # 2. The app will automatically be included when "All Apps" is selected
 # 3. Optionally add the app name to the workflow input dropdown for individual selection
 # 
@@ -24,7 +24,7 @@
 # - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
 # 
 # Set repository variables at: Settings > Secrets and variables > Actions > Variables tab
-# Configure connected app IDs directly in: .github/config/apps.json
+# Configure connected app IDs directly in: .github/config/bitrise-apps.json
 # For setup instructions, see: docs/app-specific-connected-app-ids.md
 
 name: 'Create Release Step 2: Build Apps'
@@ -65,23 +65,23 @@ jobs:
       - name: Load app configuration
         id: load-config
         run: |
-          echo "📋 Loading app configuration from .github/config/apps.json"
+          echo "📋 Loading app configuration from .github/config/bitrise-apps.json"
           
-          if [ ! -f ".github/config/apps.json" ]; then
-            echo "❌ Configuration file .github/config/apps.json not found"
+          if [ ! -f ".github/config/bitrise-apps.json" ]; then
+            echo "❌ Configuration file .github/config/bitrise-apps.json not found"
             exit 1
           fi
           
           # Validate JSON format
-          if ! jq empty .github/config/apps.json 2>/dev/null; then
-            echo "❌ Invalid JSON in .github/config/apps.json"
+          if ! jq empty .github/config/bitrise-apps.json 2>/dev/null; then
+            echo "❌ Invalid JSON in .github/config/bitrise-apps.json"
             exit 1
           fi
           
           # Display loaded configuration summary
           echo "✅ Successfully loaded configuration:"
-          jq -r 'keys[]' .github/config/apps.json | while read app; do
-            prefix=$(jq -r ".\"$app\".workflow_prefix" .github/config/apps.json)
+          jq -r 'keys[]' .github/config/bitrise-apps.json | while read app; do
+            prefix=$(jq -r ".\"$app\".workflow_prefix" .github/config/bitrise-apps.json)
             echo "  • $app → $prefix"
           done
           
@@ -108,7 +108,7 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.app_selection }}" == "All Apps" ]; then
             # Dynamically load all apps from JSON configuration
-            APPS=$(jq -c 'keys' .github/config/apps.json)
+            APPS=$(jq -c 'keys' .github/config/bitrise-apps.json)
             echo "Building all apps from configuration:"
             echo "$APPS" | jq -r '.[]' | while read app; do
               echo "  • $app"
@@ -525,31 +525,31 @@ jobs:
           echo "🔍 Resolving connected app ID for: $APP_NAME"
           
           # Load app configuration from JSON file
-          if [ ! -f ".github/config/apps.json" ]; then
-            echo "❌ Configuration file .github/config/apps.json not found"
-            echo "💡 Create .github/config/apps.json with app configurations"
+          if [ ! -f ".github/config/bitrise-apps.json" ]; then
+            echo "❌ Configuration file .github/config/bitrise-apps.json not found"
+            echo "💡 Create .github/config/bitrise-apps.json with app configurations"
             echo "connected_app_id=" >> $GITHUB_OUTPUT
             exit 0
           fi
           
           # Check if app exists in configuration
-          if ! jq -e ".\"$APP_NAME\"" .github/config/apps.json > /dev/null; then
-            echo "⚠️ App '$APP_NAME' not found in .github/config/apps.json"
+          if ! jq -e ".\"$APP_NAME\"" .github/config/bitrise-apps.json > /dev/null; then
+            echo "⚠️ App '$APP_NAME' not found in .github/config/bitrise-apps.json"
             echo "💡 Add $APP_NAME to the apps configuration file"
-            echo "📖 Available apps: $(jq -r 'keys | join(", ")' .github/config/apps.json)"
+            echo "📖 Available apps: $(jq -r 'keys | join(", ")' .github/config/bitrise-apps.json)"
             echo "connected_app_id=" >> $GITHUB_OUTPUT
             exit 0
           fi
           
           # Get connected app ID directly from JSON configuration
-          CONNECTED_APP_ID=$(jq -r ".\"$APP_NAME\".bitrise_connected_app_id" .github/config/apps.json)
+          CONNECTED_APP_ID=$(jq -r ".\"$APP_NAME\".bitrise_connected_app_id" .github/config/bitrise-apps.json)
           
           if [ -n "$CONNECTED_APP_ID" ] && [ "$CONNECTED_APP_ID" != "null" ] && [ "$CONNECTED_APP_ID" != "your-${APP_NAME,,}-connected-app-id-here" ]; then
             echo "✅ Successfully resolved connected app ID from configuration: ${CONNECTED_APP_ID:0:8}... (for $APP_NAME)"
             echo "connected_app_id=$CONNECTED_APP_ID" >> $GITHUB_OUTPUT
           else
             echo "❌ No connected app ID configured for $APP_NAME"
-            echo "💡 Set the bitrise_connected_app_id field in .github/config/apps.json"
+            echo "💡 Set the bitrise_connected_app_id field in .github/config/bitrise-apps.json"
             echo "📖 See docs/app-specific-connected-app-ids.md for setup instructions"
             echo "📋 Current value: $CONNECTED_APP_ID"
             echo "connected_app_id=" >> $GITHUB_OUTPUT
